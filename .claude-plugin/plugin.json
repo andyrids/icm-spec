@@ -1,0 +1,11 @@
+{
+  "name": "icm",
+  "description": "Interpretable Context Methodology - workspace pipelines, spec-driven artifacts and hook-enforced gates.",
+  "homepage": "https://github.com/andyrids/icm-spec",
+  "repository": "https://github.com/andyrids/icm-spec",
+  "license": "Apache-2.0",
+  "version": "1.0.0",
+  "author": {
+    "name": "Andrew Ridyard"
+  }
+}
