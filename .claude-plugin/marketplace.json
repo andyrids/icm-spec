@@ -10,7 +10,6 @@
       "name": "icm",
       "source": "./",
       "description": "Interpretable Context Methodology - workspace pipelines, spec-driven artifacts and hook-enforced gates.",
-      "version": "1.0.0",
       "author": {
         "name": "Andrew Ridyard"
       }

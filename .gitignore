@@ -1,0 +1,6 @@
+# Python
+__pycache__/
+.venv/
+
+# Machine-local Claude Code settings
+.claude/settings.local.json
