@@ -1,0 +1,97 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-project --script \"${CLAUDE_PLUGIN_ROOT}/scripts/preflight.py\""
+          }
+        ]
+      }
+    ],
+    "UserPromptExpansion": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-project --script \"${CLAUDE_PLUGIN_ROOT}/scripts/gate_implement.py\""
+          },
+          {
+            "type": "command",
+            "command": "uv run --no-project --script \"${CLAUDE_PLUGIN_ROOT}/scripts/gate_clarification.py\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Edit(specs/**)",
+            "command": "uv run --no-project --script \"${CLAUDE_PLUGIN_ROOT}/scripts/gate_spec_edit.py\""
+          },
+          {
+            "type": "command",
+            "if": "Edit(ICM/**)",
+            "command": "uv run --no-project --script \"${CLAUDE_PLUGIN_ROOT}/scripts/gate_output_naming.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Write(specs/**)",
+            "command": "uv run --no-project --script \"${CLAUDE_PLUGIN_ROOT}/scripts/gate_spec_edit.py\""
+          },
+          {
+            "type": "command",
+            "if": "Write(ICM/**)",
+            "command": "uv run --no-project --script \"${CLAUDE_PLUGIN_ROOT}/scripts/gate_output_naming.py\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Edit(plans/**)",
+            "command": "uv run --no-project --script \"${CLAUDE_PLUGIN_ROOT}/scripts/gate_plan_frontmatter.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Write(plans/**)",
+            "command": "uv run --no-project --script \"${CLAUDE_PLUGIN_ROOT}/scripts/gate_plan_frontmatter.py\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-project --script \"${CLAUDE_PLUGIN_ROOT}/scripts/gate_spec_coverage.py\""
+          },
+          {
+            "type": "command",
+            "command": "uv run --no-project --script \"${CLAUDE_PLUGIN_ROOT}/scripts/gate_closeout.py\""
+          }
+        ]
+      }
+    ]
+  }
+}

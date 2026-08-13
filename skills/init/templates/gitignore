@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+.venv/
+
+# Machine-local Claude Code settings
+.claude/settings.local.json
+
+# ICM stage output is ephemeral scratch, rebuilt per run (dirs kept via .gitkeep)
+ICM/**/output/*
+!ICM/**/output/.gitkeep
+ICM/**/shared/*
+!ICM/**/shared/.gitkeep
