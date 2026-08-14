@@ -66,11 +66,15 @@ def main() -> int:
             if meta[key] is None:
                 problems.append(f"{key}: is missing (expected '{expected}')")
             elif meta[key] != expected:
-                problems.append(f"{key}: is '{meta[key]}', expected '{expected}'")
+                problems.append(
+                    f"{key}: is '{meta[key]}', expected '{expected}'"
+                )
         for key in LIST_KEYS:
             for spec in meta[key]:
                 if not (root / spec).is_file():
-                    problems.append(f"{key}: entry '{spec}' does not resolve to a file")
+                    problems.append(
+                        f"{key}: entry '{spec}' does not resolve to a file"
+                    )
         for spec in set(meta["specs"]) & set(meta["authors"]):
             problems.append(
                 f"'{spec}' is in both specs: and authors: - a spec whose code this plan "

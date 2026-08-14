@@ -34,8 +34,8 @@ Express applies only when all three hold:
 The first condition carries the design. Needing a spec change *is* what makes work not small, so
 eligibility cannot be used to slip a behaviour change past stage 01.
 
-Work that turns out to need a spec re-enters `process-plan` at stage 01, carrying its plan across
-- the plan is already open and already named, and nothing about it needs rewriting.
+Work that turns out to need a spec re-enters `process-plan` at stage 01, carrying its plan across -
+the plan is already open and already named, and nothing about it needs rewriting.
 
 ## Acceptance criteria
 

@@ -51,37 +51,52 @@ def main() -> int:
 
     version = json.loads(PLUGIN.read_text(encoding="utf-8")).get("version")
     if not version:
-        bad.append((".claude-plugin/plugin.json", "declares no version - the authoritative field is empty"))
+        bad.append(
+            (
+                ".claude-plugin/plugin.json",
+                "declares no version - the authoritative field is empty",
+            )
+        )
 
     catalog = json.loads(MARKETPLACE.read_text(encoding="utf-8"))
-    entry = next((p for p in catalog.get("plugins", []) if p.get("name") == "icm"), None)
+    entry = next(
+        (p for p in catalog.get("plugins", []) if p.get("name") == "icm"), None
+    )
     if entry is None:
-        bad.append((".claude-plugin/marketplace.json", "has no entry named icm"))
+        bad.append(
+            (".claude-plugin/marketplace.json", "has no entry named icm")
+        )
     elif "version" in entry:
-        bad.append((
-            ".claude-plugin/marketplace.json",
-            f"entry for icm declares version {entry['version']} - plugin.json masks it silently; remove it",
-        ))
+        bad.append(
+            (
+                ".claude-plugin/marketplace.json",
+                f"entry for icm declares version {entry['version']} - plugin.json masks it silently; remove it",
+            )
+        )
 
     readme = README.read_text(encoding="utf-8")
     match = README_VERSION.search(readme)
     if match is None:
         bad.append(("README.md", "header states no plugin version"))
     elif version and match.group(1) != version:
-        bad.append((
-            f"README.md:{line_of(readme, match.start())}",
-            f"header states icm {match.group(1)}, plugin.json says {version}",
-        ))
+        bad.append(
+            (
+                f"README.md:{line_of(readme, match.start())}",
+                f"header states icm {match.group(1)}, plugin.json says {version}",
+            )
+        )
 
     changelog = CHANGELOG.read_text(encoding="utf-8")
     heading = HEADING.search(changelog)
     if heading is None:
         bad.append(("CHANGELOG.md", "has no release heading"))
     elif version and heading.group(1) not in ("unreleased", version):
-        bad.append((
-            f"CHANGELOG.md:{line_of(changelog, heading.start())}",
-            f"top release heading is [{heading.group(1)}], plugin.json says {version}",
-        ))
+        bad.append(
+            (
+                f"CHANGELOG.md:{line_of(changelog, heading.start())}",
+                f"top release heading is [{heading.group(1)}], plugin.json says {version}",
+            )
+        )
 
     for where, why in bad:
         print(f"  DRIFT  {where:<15} {why}")

@@ -105,7 +105,8 @@ EARS requirements name their subject outright, so they are complete sentences an
 stop - including the checkbox form:
 
 ```markdown
-- [ ] When a record arrives malformed, the importer shall reject it and continue the batch.
+- [ ] When a record arrives malformed, the importer shall reject it and
+      continue the batch.
 ```
 
 This is why the two notations do not mix inside one list. A block of modal fragments and a block

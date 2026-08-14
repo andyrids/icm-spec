@@ -15,7 +15,13 @@ License:
 
 import sys
 
-from _common import is_icm_project, iter_plans, parse_plan_frontmatter, project_dir, read_event
+from _common import (
+    is_icm_project,
+    iter_plans,
+    parse_plan_frontmatter,
+    project_dir,
+    read_event,
+)
 
 OPEN_STATUSES = {"planned", "in-progress"}
 

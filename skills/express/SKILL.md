@@ -1,6 +1,8 @@
 ---
 name: express
-description: Run the ICM express-change pipeline - a small change no spec has to move for, with the plan record left intact
+description: >
+   Run the ICM express-change pipeline - a small change no spec has to move for, with the plan
+   record left intact
 disable-model-invocation: true
 ---
 

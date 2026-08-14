@@ -14,7 +14,13 @@ License:
 
 import sys
 
-from _common import emit, is_icm_project, project_dir, read_event, relative_posix
+from _common import (
+    emit,
+    is_icm_project,
+    project_dir,
+    read_event,
+    relative_posix,
+)
 
 
 def main() -> int:

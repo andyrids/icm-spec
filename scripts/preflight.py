@@ -32,7 +32,11 @@ def plugin_version() -> str:
         data = json.loads(manifest.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return "unknown"
-    return str(data.get("version", "unknown")) if isinstance(data, dict) else "unknown"
+    return (
+        str(data.get("version", "unknown"))
+        if isinstance(data, dict)
+        else "unknown"
+    )
 
 
 def main() -> int:

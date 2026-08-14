@@ -27,7 +27,12 @@ import sys
 import tempfile
 from pathlib import Path
 
-TEMPLATES = Path(__file__).resolve().parent.parent.parent / "skills" / "init" / "templates"
+TEMPLATES = (
+    Path(__file__).resolve().parent.parent.parent
+    / "skills"
+    / "init"
+    / "templates"
+)
 
 FENCE = re.compile(r"^```.*?^```", re.S | re.M)
 TOKEN = re.compile(r"`([^`\n]+)`")
@@ -112,7 +117,9 @@ def report(root: Path) -> int:
         print(f"  MISSING   {token:<26} cited by {where}")
     for token, reason in sorted(NOT_SCAFFOLDED.items()):
         print(f"  by design {token:<26} {reason}")
-    print(f"\n{total} documents scanned, {len(bad)} unresolved path references")
+    print(
+        f"\n{total} documents scanned, {len(bad)} unresolved path references"
+    )
     return 1 if bad else 0
 
 

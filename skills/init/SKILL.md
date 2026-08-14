@@ -1,6 +1,8 @@
 ---
 name: init
-description: Scaffold the ICM tree into the current repository - AGENTS.md, CONTEXT.md, CHANGELOG.md, ICM/, specs/, plans/ and .gitignore
+description: >
+   Scaffold the ICM tree into the current repository - AGENTS.md, CONTEXT.md, CHANGELOG.md, ICM/,
+   specs/, plans/ and .gitignore
 disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Glob, Bash
 ---
