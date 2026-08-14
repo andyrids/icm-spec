@@ -16,14 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > - `Fixed` for any bug fixes.
 > - `Security` in case of vulnerabilities.
 
+## [unreleased]
+
+### Changed
+
+- Replaced `scripts/tests/test_gates.py` with a layered `unittest` package (`scripts/tests/`).
+
 ## [1.0.1] - 2026-08-14
 
 ### Fixed
 
-- `gate_spec_coverage.py` matched the porcelain status as a whole word, so a staged-then-edited
-  spec (`AM`) and a `git mv`d spec (`R `) both walked past Invariant 1
-- `git_pending_paths` returned a rename's `old -> new` payload as a single path, so a renamed plan
-  at `status: done` with an empty `pr:` escaped `gate_closeout.py` entirely
+- `gate_spec_coverage.py` matched the porcelain status as a whole word.
+- `git_pending_paths` returned a rename's `old -> new` payload as a single path.
 - `git_pending_paths` was annotated `-> list[str]` while returning `(status, path)` pairs
 
 ### Changed

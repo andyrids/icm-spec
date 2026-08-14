@@ -14,10 +14,10 @@ set dotenv-load := true
 [group("TEST")]
 test: test-gates test-paths test-budgets test-manifest
 
-[doc("Unit tests for the seven hook gates")]
+[doc("Unit tests for the gate scripts, preflight and the check_*.py helpers")]
 [group("TEST")]
 test-gates:
-    uv run --no-project python scripts/tests/test_gates.py
+    uv run --no-project python -m unittest discover -s scripts/tests -t scripts -v
 
 [doc("Every path a scaffolded tree cites in prose resolves")]
 [group("TEST")]

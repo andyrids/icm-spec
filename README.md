@@ -1,38 +1,48 @@
 # ICM Plugin Handbook
 
-`icm` is a Claude Code plugin that runs spec-driven development as a staged pipeline with human
-review gates, on top of Interpretable Context Methodology (ICM). This is what it installs, what
-each piece does, and how a real change moves through it.
+`icm` is a Claude Code plugin that runs spec-driven development (spec-anchored) as a staged
+pipeline with human review gates, on top of Interpretable Context Methodology (ICM).
 
-- **Plugin:** icm 1.0.1
-- **Marketplace:** icm-spec
-- **Commands:** 6
-- **Gates:** 7
-- **Requires:** `uv` on PATH
+With spec-anchored development, a specification evolves alongside the software and is updated to
+reflect the current state of the system as it changes. Adverserial agent verification is used to
+automate spec-drift detection.
+
+ICM replaces framework-level orchestration with filesystem structure. Numbered folders represent
+stages. Plain markdown files carry prompts and context that tell a single AI agent what role to
+play at each step.
 
 > [!IMPORTANT]
 > Concepts adapted from an Interpretable Context Methodology paper attributed to Van Clief, J.
 > and McDermott, D., 2026 (arXiv:2603.16021).
 
+A large community dedicated to this methodology can be found at
+[https://www.skool.com/cliefnotes](https://www.skool.com/cliefnotes/about?ref=478219c6d94340bd984dde6a8d1046e6).
+
+A community member made a detailed and easy-to-understand video guide on YouTube -
+[here](https://youtu.be/tvvaOCK_Z50?si=dX86mhIKVEXSVM0k).
+
 ---
 
 ## Premise - What the plugin actually does
 
-An agent with a large context window often reads and decides everything at once. That is how a
-spec, its implementation and its record end up disagreeing inside a single session - not through
-incompetence, but because nothing forced the decisions apart.
+An agent with a large context window often reads and decides everything at once, causing a spec,
+its implementation and its record to drift inside a single session.
 
-ICM forces them apart. Work moves through **stages**, each with a written contract naming what it
-reads, what it does and what it writes. A stage loads only its own inputs. Between stages sits a
-human. The plugin supplies the folder structure that holds this, the slash commands that enter each
-stage, and seven hook **gates** that make the rules refuse rather than merely advise.
+ICM forces these components apart. Work moves through **stages**, each with a written contract
+naming what it reads, what it does and what it writes and between these stages sits a human.
 
-Three ideas carry the whole design, and everything below is an application of one of them.
+The plugin supplies the folder structure that define this, the commands that enter each
+stage and hook **gates** that make the rules refuse rather than simply advise.
+
+Three ideas carry the whole design and everything below details their implementation.
 
 ### State, motion, scratch
 
-`specs/` is what must be true, forever. `plans/` is what you are doing about it, frozen when done.
-Stage output is scratch, gitignored. Confusing the three is the failure this tree exists to prevent.
+- `specs/` - What MUST be true about the project (forever).
+- `plans/` - Steps taken to realise specs (frozen when done).
+
+Stage output is scratch (ephemeral), gitignored. Confusing the three is the failure this tree
+exists to prevent.
 
 ### Contracts cite, references state
 
@@ -42,7 +52,7 @@ reference disagree, the reference wins and the contract is what needs fixing.
 ### The record is not optional
 
 Every unit of work leaves a plan file, including small ones. The fast path is a shorter pipeline,
-never a plan-free one - skipping the record is what hollows it out.
+never a plan-free one - skipping the record hollows it out.
 
 ### Configure the factory
 
@@ -55,10 +65,16 @@ The templates are stack-agnostic. Anything specific to a language, test runner o
 
 ### Requirements
 
-Two tools, both on `PATH`: **`uv`**, because every hook runs as a single-file Python script through
-`uv run` - `uv` supplies Python itself, so no separate interpreter install is needed - and
-**`git`**, because `git status` is used to reason about work in flight. The gates declare no
-dependencies.
+Two tools, both on `PATH`.
+
+#### (1) `uv`
+
+Every hook runs as a single-file Python script through `uv run`. `uv` supplies Python itself,
+mitigating system Python installation.
+
+#### (2) `git`
+
+`git status` is used to reason about work in flight.
 
 ### Installing
 
@@ -66,6 +82,9 @@ Add the marketplace, then install the plugin:
 
 ```sh
 /plugin marketplace add andyrids/icm-spec
+```
+
+```sh
 /plugin install icm@icm-spec
 ```
 
@@ -76,17 +95,16 @@ Scaffold the tree into the repository you are standing in:
 ```
 
 `/plugin install` prompts for a scope (all compatible) - the gates guard themselves by looking for
-`ICM/`, not by trusting where they were installed.
+`ICM/`.
 
 1. **User** enables the plugin in every project - relying on guards for non-ICM projects.
 2. **Project** writes `.claude/settings.json` - shared with the repository.
 3. **Local** is the private project form - unshared.
 
-Non-interactively, `claude plugin install icm@icm-spec --scope project` - user scope when the flag
-is omitted.
+Non-interactively - `claude plugin install icm@icm-spec --scope project`.
 
-A repository can also pre-declare the plugin, causing a prompt to install it, the moment the folder
-is trusted - add this to `.claude/settings.json`:
+A repository can pre-declare the plugin, causing a prompt to install it, the moment the folder
+is trusted via `.claude/settings.json`:
 
 ```json
 {
@@ -97,71 +115,79 @@ is trusted - add this to `.claude/settings.json`:
 }
 ```
 
-`/icm:init` is idempotent. A destination file that already exists is left untouched and reported as
-`exists`, so re-running it after a plugin update is safe and tells you what is already there.
+> [!NOTE]
+> `/icm:init` is idempotent - existing destination files are untouched and reported as `exists`, so
+> re-running after an update is safe.
 
 ### Updating
 
-An update is two steps, because the catalog and the plugin are cached separately:
+An update has two steps because the catalog and plugin are cached separately:
 
 1. `/plugin marketplace update icm-spec` - re-fetches the catalog.
 2. `/plugin update icm@icm-spec` - installs the new version.
 
-Claude Code caches an installed plugin under marketplace, plugin and version, and a scope records
-only *enablement* in its settings file. So updating is one operation that every scope sees, not
+Claude Code caches an installed plugin under marketplace, plugin and version and a scope only
+records *enablement* in its settings. Updating is one operation that every scope sees, not
 three.
 
-Auto-update is off by default for a third-party marketplace like this one - only official Anthropic
-marketplaces ship with it on. Turn it on per marketplace under:
+Auto-update is off by default for third-party marketplaces - only official Anthropic
+marketplaces automatically update. Turn it on per marketplace under:
 
 `/plugin` → **Marketplaces** → **Enable auto-update**, or carry `"autoUpdate": true` on the
 `extraKnownMarketplaces` entry shown above.
 
-After a mid-session update, run `/reload-plugins`. `${CLAUDE_PLUGIN_ROOT}` moves to the new
-version's directory.
+After a mid-session update, run `/reload-plugins` and `${CLAUDE_PLUGIN_ROOT}` points at the new
+version.
 
-Updating the plugin never touches an already-scaffolded tree. `/icm:init` reports `exists` for
-every file already present and moves on. It will not overwrite a `reference-*.md` you have amended.
-Reconciling a scaffolded tree with newer templates is a manual diff.
+Updating the plugin never touches an existing tree. `/icm:init` reports `exists` for every file
+already present and moves on. It will not overwrite a `reference-*.md` you have amended.
+
+> [!IMPORTANT]
+> Reconciling a scaffolded tree with newer templates is a manual diff.
 
 ### What lands in the repository
 
 ```text
-AGENTS.md              Layer 0 - project identity + the hierarchy. CLAUDE.md symlinks here
-CONTEXT.md             Layer 1 - routes to a workspace, and nothing deeper
-CHANGELOG.md           Keep a Changelog stub; stage 04 writes into it
-.gitignore             ignores stage output/ and shared/ scratch
+AGENTS.md        <- Layer 0 - project identity + hierarchy (CLAUDE.md symlinks)
+CONTEXT.md       <- Layer 1 - routes to a workspace, and nothing deeper
+CHANGELOG.md     <- Keep a Changelog stub
+.gitignore       <- Ignores stage output/ and shared/ scratch
 
 specs/
-  README.md            tree layout, the four invariants, the ripple protocol
+  README.md      <- Tree layout, the four invariants, the ripple protocol
 
 plans/
-  README.md            frontmatter contract, section order, closeout steps
+  README.md      <- Frontmatter contract, section order, closeout steps
 
 ICM/
-  _config/             Layer 3 reference material - the factory configuration
-    reference-standard-spec.md         how to author a spec
-    reference-standard-validation.md   EARS patterns for Validation criteria
-    reference-standard-techspec.md     the techspec template
-    reference-standard-naming.md       slugs, filenames, output frontmatter
-    reference-standard-markdown.md     prose and typography conventions
-    reference-standard-changelog.md    Keep a Changelog rules
-    reference-standard-yagni.md        the scope boundary
+  _config/                            <- Layer 3 reference material
+    reference-standard-spec.md        <- How to author a spec
+    reference-standard-validation.md  <- EARS patterns for Validation criteria
+    reference-standard-techspec.md    <- The techspec template
+    reference-standard-naming.md      <- Slugs, filenames, output frontmatter
+    reference-standard-markdown.md    <- Prose and typography conventions
+    reference-standard-changelog.md   <- Keep a Changelog rules
+    reference-standard-yagni.md       <- The scope boundary
 
-  process-plan/        the four-stage pipeline
+  process-plan/   <- The four-stage pipeline
     CONTEXT.md
     shared/
-    stages/01-specification/ 02-implementation/ 03-verification/ 04-documentation/
+    stages/
+      01-specification/
+      02-implementation/
+      03-verification/
+      04-documentation/
 
-  express-change/      the one-stage pipeline
+  express-change/  <- The one-stage pipeline
     CONTEXT.md
-    stages/01-change/
+    stages/
+      01-change/
 ```
 
 > [!NOTE]
-> The top of `AGENTS.md` carries a `[Project name]` placeholder block. `init` deliberately leaves
-> it unfilled rather than guessing. Replace it with what the project is, who it serves, and the one
-> or two constraints an agent must never violate.
+> The top of `AGENTS.md` carries a `[Project name]` placeholder block, which `init` deliberately
+> leaves unfilled. Replace it with what the project is, who it serves and one or two important
+> constraints.
 
 ---
 
@@ -260,12 +286,12 @@ scratch, rebuilt per run.
 
 **must `specs/**` change?**
 
-If yes - new behaviour, changed behaviour, or a rule not yet declared - it is `process-plan`,
+If yes - new behaviour, changed behaviour or a rule not yet declared - it is `process-plan`,
 however small the diff looks.
 
-If no and the work is one commit's worth, it is `express-change`. Size is not the test: a two-line
-diff that changes what the software promises is a spec change and a large mechanical refactor that
-changes nothing observable is not.
+If no and the work is a single commit, it is `express-change`. Size is not the test as a simple
+diff that changes what the software promises is a spec change - unlike a large refactor that
+changes nothing observable.
 
 ### process-plan - four stages
 
@@ -273,43 +299,45 @@ changes nothing observable is not.
 and a techspec. Nothing is implemented.
 - **Stage 02 - Implementation** - Brings code into conformance with the techspec. Deviations are
 recorded, not absorbed silently.
-- **Stage 03 - Verification** - Reports each Validation criterion against captured test output and
-compares behaviour to every spec in `specs:`.
-- **Stage 04 - Documentation** - Changelog entry, plan closeout, follow-ups.
+- **Stage 03 - Verification** - Reports each plan validation criterion against captured test output
+and compares behaviour to every spec in `specs:`.
+- **Stage 04 - Documentation** - `CHANGELOG.md` entry, plan closeout, follow-ups.
 
-Each stage ends at an unconditional review gate: it presents its output and waits for explicit
+Each stage ends at an unconditional review gate, presenting its output and waiting for explicit
 acceptance. "Approved" or "continue" proceeds as presented; approval carrying changes applies them
-and where those change observable behaviour, the **re-entry rule** sends the work back to the
-earliest stage whose output is now invalid - normally 01, because the spec and the plan must move
+and where they change observable behaviour, the **re-entry rule** sends the work back to the
+earliest stage whose output is now invalid (normally 01), because the spec and the plan must move
 first.
 
 > [!TIP]
-> Only the delta is re-run, and the re-entry is recorded in the plan's Notes.
+> Only the delta is re-run and the re-entry is recorded under the plan `## Notes`.
 
 ### express-change - one stage
 
 The same run compressed: eligibility, change, evidence, closeout, with a single review gate at the
-end. What it drops is the techspec and the three intermediate reports - those exist to carry a
-decision from one stage to the next, which is not required here.
+end. It drops the techspec and the three intermediate reports as those exist to carry decisions
+between stages, which is not required here.
 
 **Why the fast path cannot be abused:** eligibility requires that **no spec has to change**.
 Needing a spec change is what makes work NOT small, so the condition cannot be satisfied by work
-that should have gone through stage 01.
+that requires stage 01.
 
-The agent must state its eligibility verdict with reasons *before* writing anything, so a wrong
-call gets denied rather than discovered afterwards - and if scope grows mid-run, that signals
-the wrong call was made.
+The agent must evidence an eligibility verdict *before* writing anything, so a wrong call gets
+denied rather than discovered afterwards.
+
+> [!TIP]
+> If scope grows mid-run, that signals the wrong call was made.
 
 ---
 
 ## Walkthrough - A change from request to frozen record
 
-This is the full four-stage path for a feature that changes what the software promises. Assume a
+This details a full pipeline for a feature that changes what the software promises. Assume a
 scaffolded repository on a feature branch.
 
-### (1) `/icm:specify add a --json output mode to the report command`
+### (1) `/icm:specify add a --json output mode to the CLI report command`
 
-Stage 01 reads Layer 1, then the workspace, then its own contract - and only then the references
+Stage 01 reads Layer 1, then the workspace, then its own contract - and only the references
 that contract names. It picks a kebab-case slug (`json-output-mode`) that will correlate every
 artifact this run produces.
 
@@ -333,7 +361,7 @@ The stage flips the plan to `in-progress` and works through the techspec directi
 order, writing source and tests.
 
 Where reality forces a deviation from the techspec, it records the deviation and the reason in the
-implementation report, because the report is the handoff and an undocumented deviation is invisible
+implementation report, because the report is the handoff and undocumented deviations are invisible
 to stage 03.
 
 *REVIEW GATE* - The implementation report, plus the diff.
@@ -341,7 +369,7 @@ to stage 03.
 ### (3) `/icm:verify`
 
 Runs the project tests and coverage commands as your `reference-toolchain-*.md` files define them
-and captures the result verbatim. It then walks the Validation checklist in order, quoting each
+and captures the result verbatim. It then walks the validation checklist in order, quoting each
 checkbox as the requirement identifier and reports evidenced pass, fail or not-testable beside it.
 
 Finally, it compares observable behaviour against each spec named in `specs:`. A divergence is
@@ -588,11 +616,19 @@ is tested.
 
 ## Maintenance - Keeping the tree honest
 
-The plugin ships four checks, run together by `just test`. All four exist because the corresponding
-contract was previously stated and unenforced, which is the same thing as absent.
+Tests can be run with the Justfile recipe - `just test` or manually, with the following commands:
 
-- **`test_gates.py`**: Every gate blocks the case it should *and* opens for the case it
-  should - a gate that never opens is as broken as one that never closes
+```sh
+uv run --no-project python -m unittest discover -s scripts/tests -t scripts -v
+uv run --no-project python scripts/tests/check_paths.py
+uv run --no-project --script scripts/tests/check_budgets.py
+uv run --no-project --script scripts/tests/check_manifest.py
+```
+
+- **`scripts/tests/`**: A `unittest` package (run via `python -m unittest discover`) proving
+  every gate blocks the case it should *and* opens for the case it should - a gate that never
+  opens is as broken as one that never closes. Three layers: pure functions in-process, `main()`
+  against real git fixtures, and one real subprocess per script pinning the deployed contract
 - **`check_paths.py`**: Every backtick-quoted path a scaffolded tree cites in prose resolves.
   Deliberate forward references are allowlisted with their reason, so an unexplained addition
   is the smell
