@@ -19,7 +19,6 @@ License:
 
 import re
 import sys
-from pathlib import Path
 
 from _common import (
     git_pending_paths,
@@ -45,7 +44,9 @@ def section(text: str, name: str) -> str:
         The section body, or "" if the section is not found.
     """
     match = re.search(
-        rf"^## {re.escape(name)}\s*$(.*?)(?=^## |\Z)", text, re.MULTILINE | re.DOTALL
+        rf"^## {re.escape(name)}\s*$(.*?)(?=^## |\Z)",
+        text,
+        re.MULTILINE | re.DOTALL,
     )
     return match.group(1).strip() if match else ""
 
@@ -60,7 +61,11 @@ def main() -> int:
         return 0
     failures = []
     for _status, path in git_pending_paths(root, "plans"):
-        if not path.endswith(".md") or path == "plans/README.md" or path.count("/") != 1:
+        if (
+            not path.endswith(".md")
+            or path == "plans/README.md"
+            or path.count("/") != 1
+        ):
             continue
         try:
             text = (root / path).read_text(encoding="utf-8")
@@ -71,7 +76,9 @@ def main() -> int:
             continue
         if not meta["pr"]:
             failures.append(f"{path}: status is done but pr: is empty")
-        if UNTICKED_RE.search(section(text, "Validation")) and not section(text, "Notes"):
+        if UNTICKED_RE.search(section(text, "Validation")) and not section(
+            text, "Notes"
+        ):
             failures.append(
                 f"{path}: unticked Validation boxes with an empty Notes section - record "
                 "why each box stays unticked"

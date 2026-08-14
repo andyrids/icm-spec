@@ -18,7 +18,11 @@ import re
 import sys
 
 from _common import (
-    SLUG_SUFFIX_BY_STAGE, emit, project_dir, read_event, relative_posix
+    SLUG_SUFFIX_BY_STAGE,
+    emit,
+    project_dir,
+    read_event,
+    relative_posix,
 )
 
 # OUTPUT_RE requires an `ICM/*/stages/*/output/` path, which is a strictly

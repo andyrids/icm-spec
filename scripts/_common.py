@@ -11,8 +11,9 @@ License:
 import json
 import subprocess
 import sys
+from collections.abc import Generator
 from pathlib import Path, PurePosixPath
-from typing import Any, Generator
+from typing import Any
 
 STATUS_ENUM = {"planned", "in-progress", "done", "blocked", "cancelled"}
 
@@ -35,8 +36,18 @@ SLUG_SUFFIX_BY_STAGE = {
     "04": "docs",
 }
 
+# Porcelain v1 unmerged codes (git-status(1)). "DD", "DU" and "UD" carry a "D"
+# and the delete guard in `git_pending_paths` would drop them anyway; naming the
+# whole set makes "AA", "AU", "UA" and "UU" a decision rather than a side-effect
+# of that guard. A conflicted path is a merge in motion, not work under review:
+# the file holds conflict markers, `plans/` may itself be half-resolved, and the
+# only honest next action is to resolve, not to edit frontmatter. Nothing
+# escapes - once resolved and staged the same path presents as "A ", "AM" or
+# "M " and is judged on the next Stop.
+GIT_UNMERGED = frozenset({"DD", "AU", "UD", "UA", "DU", "AA", "UU"})
 
-def read_event() -> dict:
+
+def read_event() -> dict[str, Any]:
     """Parse hook event JSON from STDIN.
 
     Returns:
@@ -49,7 +60,7 @@ def read_event() -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def project_dir(event: dict) -> Path:
+def project_dir(event: dict[str, Any]) -> Path:
     """Get the current working directory."""
     return Path(event.get("cwd") or ".").resolve()
 
@@ -105,7 +116,7 @@ def frontmatter_lines(text: str) -> list[str] | None:
 
 def _strip_comment(value: str) -> str:
     """Strip an inline comment from an unquoted scalar value.
-    
+
     Args:
         value: The unquoted scalar value as a string.
 
@@ -115,7 +126,7 @@ def _strip_comment(value: str) -> str:
     return value.split("#", 1)[0].strip()
 
 
-def parse_plan_frontmatter(text: str) -> dict | None:
+def parse_plan_frontmatter(text: str) -> dict[str, Any] | None:
     """Extract metadata from plan frontmatter.
 
     NOTE: Frontmatter-only by construction - the body is never scanned, so
@@ -132,7 +143,7 @@ def parse_plan_frontmatter(text: str) -> dict | None:
     lines = frontmatter_lines(text)
     if lines is None:
         return None
-    result: dict = {"status": None, "pr": None}
+    result: dict[str, Any] = {"status": None, "pr": None}
     result.update({key: [] for key in LIST_KEYS})
     result.update(dict.fromkeys(EXPECTED_HIERARCHY))
     list_key: str | None = None
@@ -151,7 +162,9 @@ def parse_plan_frontmatter(text: str) -> dict | None:
         if key in LIST_KEYS:
             if value.startswith("[") and value != "[]":
                 inner = value.strip("[]")
-                result[key] = [v.strip() for v in inner.split(",") if v.strip()]
+                result[key] = [
+                    v.strip() for v in inner.split(",") if v.strip()
+                ]
             else:
                 list_key = key
         elif key in {"status", "pr", *EXPECTED_HIERARCHY}:
@@ -159,7 +172,7 @@ def parse_plan_frontmatter(text: str) -> dict | None:
     return result
 
 
-def plan_spec_paths(meta: dict) -> set[str]:
+def plan_spec_paths(meta: dict[str, list[str]]) -> set[str]:
     """Every spec path a plan claims, across both coverage fields.
 
     NOTE: `specs` and `authors` answer different questions - conformance
@@ -173,7 +186,9 @@ def plan_spec_paths(meta: dict) -> set[str]:
         The union of both fields, with backslashes normalised.
     """
     return {
-        spec.replace("\\", "/") for key in LIST_KEYS for spec in meta.get(key, [])
+        spec.replace("\\", "/")
+        for key in LIST_KEYS
+        for spec in meta.get(key, [])
     }
 
 
@@ -201,7 +216,7 @@ def iter_plans(root: Path) -> Generator[tuple[Path, str], Any, None]:
             continue
 
 
-def git_pending_paths(root: Path, subdir: str) -> list[str]:
+def git_pending_paths(root: Path, subdir: str) -> list[tuple[str, str]]:
     """Get uncommitted `(status, path)` pairs under `subdir`.
 
     NOTE: Returns [] when git is unavailable or the directory is not a
@@ -213,8 +228,17 @@ def git_pending_paths(root: Path, subdir: str) -> list[str]:
         subdir: The subdirectory to check for uncommitted changes.
 
     Returns:
-        A list of `(status, path)` pairs for uncommitted files under `subdir`,
-        where `status` is the git status code and `path` is the relative path.
+        A list of `(status, path)` pairs for uncommitted files under `subdir`.
+        `status` is the raw two-character porcelain v1 column - index state
+        then working-tree state, spaces preserved. It is positional: callers
+        test `status[0]` or `status[1]` and never `status.strip()`, which
+        collapses "A " and "AM" onto different strings and silently drops the
+        second. `path` is the file as it exists in the working tree, relative
+        and forward-slashed; for a rename or copy git reports `ORIG -> PATH`
+        and only `PATH` is returned, because the destination is the only side
+        a gate can open. Unmerged entries and anything deleted from the
+        working tree are omitted - there is no file there to hold to a
+        contract.
     """
     try:
         proc = subprocess.run(
@@ -229,18 +253,36 @@ def git_pending_paths(root: Path, subdir: str) -> list[str]:
         return []
     if proc.returncode != 0:
         return []
-    paths = []
+    paths: list[tuple[str, str]] = []
     for line in proc.stdout.splitlines():
         if len(line) < 4:
             continue
-        status, path = line[:2], line[3:].strip().strip('"')
-        if "D" in status:
+        status, payload = line[:2], line[3:]
+        # Nothing here to hold to a contract: an unmerged entry is a merge in
+        # motion, and a "D" in either column means the working tree has no file
+        # at that path for a gate to open. Dropped before the split, because a
+        # dropped line needs no parse.
+        if status in GIT_UNMERGED or "D" in status:
             continue
+        # Rename and copy entries carry `ORIG -> PATH`. Anchor the cut on the
+        # status column so an arrow inside an ordinary filename is left alone,
+        # and bound it to the last separator: v1 is ambiguous when a path
+        # itself contains " -> ", and the final segment is the side the gates
+        # need - the destination, the only one that exists on disk. Split
+        # before the strip, because git quotes each side independently.
+        if "R" in status or "C" in status:
+            payload = payload.rsplit(" -> ", 1)[-1]
+        path = payload.strip().strip('"')
         paths.append((status, path.replace("\\", "/")))
     return paths
 
 
-def emit(hook_event: str, **fields) -> None:
-    """Write a `hookSpecificOutput` JSON object to STDOUT."""
+def emit(hook_event: str, **fields: str) -> None:
+    """Write a `hookSpecificOutput` JSON object to STDOUT.
+
+    Args:
+        hook_event: The name of the hook event.
+        **fields: Additional fields to include in the JSON object.
+    """
     payload = {"hookSpecificOutput": {"hookEventName": hook_event, **fields}}
     json.dump(payload, sys.stdout)

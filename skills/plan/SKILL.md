@@ -1,6 +1,7 @@
 ---
 name: plan
-description: How to open, work and close plans/<slug>.md files - the motion side of the state/motion split
+description: >
+  How to open|work|close plans/<slug>.md files - the motion side of the state/motion split
 paths:
   - "plans/**"
 ---

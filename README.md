@@ -4,7 +4,11 @@
 review gates, on top of Interpretable Context Methodology (ICM). This is what it installs, what
 each piece does, and how a real change moves through it.
 
-**Plugin:** icm 1.0.0 · **Marketplace:** icm-spec · **Commands:** 6 · **Gates:** 7 · **Requires:** `uv` on PATH
+- **Plugin:** icm 1.0.1
+- **Marketplace:** icm-spec
+- **Commands:** 6
+- **Gates:** 7
+- **Requires:** `uv` on PATH
 
 > [!IMPORTANT]
 > Concepts adapted from an Interpretable Context Methodology paper attributed to Van Clief, J.
@@ -60,14 +64,14 @@ dependencies.
 
 Add the marketplace, then install the plugin:
 
-```
+```sh
 /plugin marketplace add andyrids/icm-spec
 /plugin install icm@icm-spec
 ```
 
 Scaffold the tree into the repository you are standing in:
 
-```
+```sh
 /icm:init
 ```
 
@@ -110,7 +114,7 @@ three.
 Auto-update is off by default for a third-party marketplace like this one - only official Anthropic
 marketplaces ship with it on. Turn it on per marketplace under:
 
-`/plugin` → **Marketplaces** → **Enable auto-update**, or carry `"autoUpdate": true` on the 
+`/plugin` → **Marketplaces** → **Enable auto-update**, or carry `"autoUpdate": true` on the
 `extraKnownMarketplaces` entry shown above.
 
 After a mid-session update, run `/reload-plugins`. `${CLAUDE_PLUGIN_ROOT}` moves to the new
@@ -122,7 +126,7 @@ Reconciling a scaffolded tree with newer templates is a manual diff.
 
 ### What lands in the repository
 
-```
+```text
 AGENTS.md              Layer 0 - project identity + the hierarchy. CLAUDE.md symlinks here
 CONTEXT.md             Layer 1 - routes to a workspace, and nothing deeper
 CHANGELOG.md           Keep a Changelog stub; stage 04 writes into it
@@ -369,7 +373,7 @@ everything in `output/` was scratch.
 
 ### The same fix, express
 
-```
+```sh
 /icm:express the report command crashes on an empty result set
 ```
 
@@ -394,7 +398,9 @@ closes the plan and adds the changelog entry and presents all of it at once.
 
 ### Plan frontmatter
 
-Nothing maintains a status table or a dependency diagram, because both rot the moment someone forgets to update them. The frontmatter is the query surface instead, and every coverage and ripple check reads it.
+Nothing maintains a status table or a dependency diagram, because both rot the moment someone
+forgets to update them. The frontmatter is the query surface instead, and every coverage and
+ripple check reads it.
 
 ```yaml
 ---
@@ -428,7 +434,7 @@ breaks the mapping between report and plan.
 
 ### The four spec invariants
 
-1. Every spec on the default branch is implemented, or owned by a committed plan through `specs:
+1. Every spec on the default branch is implemented, or owned by a committed plan through `specs:`
 or `authors:`.
 2. Spec/code divergence is a bug, not debt. Fix the code or amend the spec.
 3. A spec still being negotiated stays off the default branch until its plan rides along with it.
@@ -453,21 +459,52 @@ in unrelated repositories that happen to own a `specs/` folder.
 
 ### Gate reference
 
-| Gate | Fires on | Effect | What it protects |
-|---|---|---|---|
-| `gate_implement` | prompt expansion | block | `/icm:implement` refuses to expand with no plan at `planned` or `in-progress`. Stage 02 implements an *accepted* plan |
-| `gate_clarification` | prompt expansion | block | `/icm:implement` refuses to expand while a `[NEEDS CLARIFICATION: ...]` marker survives in stage 01 output. Implementing over an open question means guessing its answer |
-| `gate_spec_edit` | write to `specs/` | ask | Never a hard deny - spec amendment is legitimate stage 01 or re-entry work. You are the gate |
-| `gate_output_naming` | write to `ICM/` | deny | Stage output must be `<slug>-spec\|code\|test\|docs.md` with the suffix its stage owns. The slug is the only thing correlating a run's artifacts |
-| `gate_plan_frontmatter` | after a plan write | advise | Cannot block; feeds context back on an invalid `status`, an unresolvable spec path, a spec in both list fields, or a missing Layer 4 key |
-| `gate_spec_coverage` | session stop | block | A new, previously untracked spec that no plan owns. Only untracked specs - blocking on modified ones would punish typo fixes |
-| `gate_closeout` | session stop | block | A plan at `done` with no `pr:`, or unticked Validation boxes with an empty Notes section |
+- **`gate_implement`**
+  - *Fires on*: prompt expansion
+  - *Effect*: block
+  - *What it protects*: `/icm:implement` refuses to expand with no plan at `planned` or
+    `in-progress`. Stage 02 implements an *accepted* plan
+- **`gate_clarification`**
+  - *Fires on*: prompt expansion
+  - *Effect*: block
+  - *What it protects*: `/icm:implement` refuses to expand while a `[NEEDS CLARIFICATION: ...]`
+    marker survives in stage 01 output. Implementing over an open question means guessing its
+    answer
+- **`gate_spec_edit`**
+  - *Fires on*: write to `specs/`
+  - *Effect*: ask
+  - *What it protects*: Never a hard deny - spec amendment is legitimate stage 01 or re-entry
+    work. You are the gate
+- **`gate_output_naming`**
+  - *Fires on*: write to `ICM/`
+  - *Effect*: deny
+  - *What it protects*: Stage output must be `<slug>-spec\|code\|test\|docs.md` with the suffix
+    its stage owns. The slug is the only thing correlating a run's artifacts
+- **`gate_plan_frontmatter`**
+  - *Fires on*: after a plan write
+  - *Effect*: advise
+  - *What it protects*: Cannot block; feeds context back on an invalid `status`, an unresolvable
+    spec path, a spec in both list fields, or a missing Layer 4 key
+- **`gate_spec_coverage`**
+  - *Fires on*: session stop
+  - *Effect*: block
+  - *What it protects*: A spec new to the tree that no plan owns - untracked, staged, or
+    arriving at a new path by rename. A merely modified spec is never blocked; that is the
+    ripple protocol's job, and blocking would punish typo fixes
+- **`gate_closeout`**
+  - *Fires on*: session stop
+  - *Effect*: block
+  - *What it protects*: A plan at `done` with no `pr:`, or unticked Validation boxes with an
+    empty Notes section
 
 ### When a Stop gate blocks you
 
 Both Stop gates read uncommitted state, so the fix is always to complete the record rather than to
 argue with the hook. Coverage blocking means a new spec has no owner: add it to the owning plan's
-`specs:` if code must change, or its `authors:` if the plan only wrote it. Closeout blocking means
+`specs:` if code must change, or its `authors:` if the plan only wrote it. A rename blocks for the
+same reason and takes the same fix in a different direction: the destination path is a spec no
+plan names, so move the owning plan's `specs:` entry to the new path - the record went stale the
+moment the file did. Closeout blocking means
 the plan froze half-closed: set `pr:`, or write into Notes *why* each unticked box stays unticked.
 Neither gate is asking you to do more work than the protocol already required - only to do it
 before the session ends.
@@ -489,22 +526,28 @@ statement about how people work adds ceremony and loses the actor.
 
 ### The six patterns
 
-| Pattern | Template | Use for |
-|---|---|---|
-| Ubiquitous | `The <system> shall <response>.` | Always true, no precondition |
-| Event-driven | `When <trigger>, the <system> shall…` | An expected event |
-| State-driven | `While <state>, the <system> shall…` | Holds throughout a state |
-| Optional feature | `Where <feature>, the <system> shall…` | Behaviour that exists only in some configurations |
-| Unwanted | `If <trigger>, then the <system> shall…` | An event you would rather did not happen |
-| Complex | Preconditions, then trigger, then response | Two or more of the above |
+- **Ubiquitous**: Always true, no precondition
+  - *Template*: `The <system> shall <response>.`
+- **Event-driven**: An expected event
+  - *Template*: `When <trigger>, the <system> shall…`
+- **State-driven**: Holds throughout a state
+  - *Template*: `While <state>, the <system> shall…`
+- **Optional feature**: Behaviour that exists only in some configurations
+  - *Template*: `Where <feature>, the <system> shall…`
+- **Unwanted**: An event you would rather did not happen
+  - *Template*: `If <trigger>, then the <system> shall…`
+- **Complex**: Two or more of the above
+  - *Template*: Preconditions, then trigger, then response
 
 The **When** / **If** split is the point of the notation, not a synonym pair. Keeping them apart
 forces failure modes to be enumerated as their own criteria rather than hiding inside an "and
 handles errors gracefully" clause.
 
-```
-- [ ] When a record arrives with a known identifier, the importer shall replace the stored copy.
-- [ ] If a record arrives malformed, then the importer shall reject it and continue the batch.
+```markdown
+- [ ] When a record arrives with a known identifier, the importer shall replace
+      the stored copy.
+- [ ] If a record arrives malformed, then the importer shall reject it and
+      continue the batch.
 ```
 
 The test for a criterion is whether stage 03 could report pass or fail on it without asking a
@@ -548,12 +591,16 @@ is tested.
 The plugin ships four checks, run together by `just test`. All four exist because the corresponding
 contract was previously stated and unenforced, which is the same thing as absent.
 
-| Check | Asserts |
-|---|---|
-| `test_gates.py` | Every gate blocks the case it should *and* opens for the case it should - a gate that never opens is as broken as one that never closes |
-| `check_paths.py` | Every backtick-quoted path a scaffolded tree cites in prose resolves. Deliberate forward references are allowlisted with their reason, so an unexplained addition is the smell |
-| `check_budgets.py` | No file exceeds the `maximum-context-tokens` its own frontmatter declares, and warns at 90% |
-| `check_manifest.py` | The version agrees everywhere it is stated - `plugin.json`, the README header, the CHANGELOG release heading - and the marketplace entry declares none, because a manifest version silently masks it |
+- **`test_gates.py`**: Every gate blocks the case it should *and* opens for the case it
+  should - a gate that never opens is as broken as one that never closes
+- **`check_paths.py`**: Every backtick-quoted path a scaffolded tree cites in prose resolves.
+  Deliberate forward references are allowlisted with their reason, so an unexplained addition
+  is the smell
+- **`check_budgets.py`**: No file exceeds the `maximum-context-tokens` its own frontmatter
+  declares and warns at 90%
+- **`check_manifest.py`**: The version agrees everywhere it is stated - `plugin.json`, the
+  README header, the CHANGELOG release heading - and the marketplace entry declares none,
+  because a manifest version silently masks it
 
 `check_paths.py` takes an optional path argument, so you can point it at your own project rather
 than the templates - useful after you have added specs and reference files of your own.

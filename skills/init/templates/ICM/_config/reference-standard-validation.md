@@ -63,8 +63,10 @@ failure modes to be enumerated as their own criteria instead of hiding in an 'an
 gracefully' clause.
 
 ```markdown
-- [ ] When a record arrives with a known identifier, the importer shall replace the stored copy.
-- [ ] If a record arrives malformed, then the importer shall reject it and continue the batch.
+- [ ] When a record arrives with a known identifier, the importer shall replace
+      the stored copy.
+- [ ] If a record arrives malformed, then the importer shall reject it and
+      continue the batch.
 ```
 
 ### State-driven and optional feature
@@ -74,8 +76,10 @@ that exists only when some feature, flag or integration is present, which is wha
 criterion honest about configurations it does not cover.
 
 ```markdown
-- [ ] While a batch is in progress, the importer shall reject a second concurrent batch.
-- [ ] Where a schema is registered, the importer shall validate each record against it.
+- [ ] While a batch is in progress, the importer shall reject a second
+      concurrent batch.
+- [ ] Where a schema is registered, the importer shall validate each record
+      against it.
 ```
 
 ### Complex
@@ -84,8 +88,9 @@ Stack the preconditions, then the trigger, then the response. If the result need
 it is usually two criteria.
 
 ```markdown
-- [ ] While a schema is registered, when a record fails validation, the importer shall write it
-      to the reject log with the failing field named.
+- [ ] While a schema is registered, when a record fails validation, the
+      importer shall write it to the reject log with the failing field
+      named.
 ```
 
 ## The right level of detail
@@ -120,8 +125,8 @@ it is too vague to be a criterion.
 Ticking a box at closeout appends what evidenced it, after an em dash separator:
 
 ```markdown
-- [x] When a record arrives with a known identifier, the importer shall replace the stored
-      copy. — `tests/test_import.py::test_replaces_known_id`
+- [x] When a record arrives with a known identifier, the importer shall replace
+      the stored copy. — `tests/test_import.py::test_replaces_known_id`
 ```
 
 The citation is appended at closeout, never at authoring. The identifier is the text up to the
