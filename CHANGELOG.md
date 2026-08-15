@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+### Fixed
+
+- `git_pending_paths` read git's C-quoted octal escapes as path separators, mangling any
+  non-ASCII path - it now reads `git status --porcelain -z`, which never quotes (#6)
+- `git_pending_paths` decoded `git status` output in the locale codepage rather than UTF-8 (#6)
+
 ### Changed
 
 - Replaced `scripts/tests/test_gates.py` with a layered `unittest` package (`scripts/tests/`).
