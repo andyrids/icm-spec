@@ -209,6 +209,25 @@ def write_plan(
     )
 
 
+def write_bytes(root: Path, rel: str, data: bytes) -> None:
+    """Write raw bytes at `rel` under `root`, creating parent directories.
+
+    NOTE: The suite's only route to a non-UTF-8 fixture (issue #8):
+    `write_plan` and `write_spec` encode UTF-8 by construction, and the
+    defect class is exactly the file that does not - a latin-1 byte that
+    `read_text(encoding="utf-8")` turns into a `UnicodeDecodeError` no
+    `except OSError` catches.
+
+    Args:
+        root: The fixture tree root.
+        rel: The forward-slash path to write, relative to `root`.
+        data: The literal bytes to write, no encoding step.
+    """
+    path = root / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+
+
 def call_gate_main(
     module: ModuleType, event: dict
 ) -> tuple[int, str, str]:

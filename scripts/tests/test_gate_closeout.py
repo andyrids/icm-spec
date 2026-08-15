@@ -14,7 +14,7 @@ import unittest
 
 import gate_closeout
 
-from .support import TempDirCase, call_gate_main, write_plan
+from .support import TempDirCase, call_gate_main, write_bytes, write_plan
 
 
 class GateCloseoutTests(TempDirCase):
@@ -70,6 +70,18 @@ class GateCloseoutTests(TempDirCase):
         rc, _out, err = call_gate_main(gate_closeout, self.event)
         self.assertEqual(rc, 0)
         self.assertEqual(err, "")
+
+    def test_a_non_utf8_plan_does_not_stop_the_others(self) -> None:
+        # `UnicodeDecodeError` is a `ValueError` that `except OSError`
+        # never caught (issue #8): one latin-1 plan aborted the loop out of
+        # `main()`. The `continue` is the load-bearing part, so the
+        # assertion is that the good plan beside it is still judged - and
+        # still blocks - not merely that nothing raises.
+        write_bytes(self.root, "plans/bad.md", b"---\nstatus: caf\xe9\n---\n")
+        write_plan(self.root, "closing", status="done", pr="")
+        rc, _out, err = call_gate_main(gate_closeout, self.event)
+        self.assertEqual(rc, 2)
+        self.assertIn("closing.md", err)
 
     def test_ignores_non_done_plans(self) -> None:
         write_plan(

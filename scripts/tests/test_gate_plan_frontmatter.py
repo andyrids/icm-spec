@@ -14,6 +14,7 @@ from .support import (
     TempDirCase,
     call_gate_main,
     specific_output,
+    write_bytes,
     write_plan,
 )
 
@@ -102,6 +103,22 @@ class GatePlanFrontmatterTests(TempDirCase):
             gate_plan_frontmatter, self._event("authoring")
         )
         self.assertEqual(out.strip(), "")
+
+    def test_a_non_utf8_plan_degrades_to_no_verdict(self) -> None:
+        # `UnicodeDecodeError` is a `ValueError` that `except OSError`
+        # never caught (issue #8): an undecodable plan crashed a
+        # PostToolUse hook that cannot block anyway. It must degrade to
+        # silence - and the gate itself must stay standing, so the next
+        # event against a readable plan still gets its verdict.
+        write_bytes(
+            self.root, "plans/binary.md", b"---\nstatus: caf\xe9\n---\n"
+        )
+        _rc, out, _err = call_gate_main(
+            gate_plan_frontmatter, self._event("binary")
+        )
+        self.assertEqual(out.strip(), "")
+        write_plan(self.root, "bogus", status="bogus")
+        self.assertIn("bogus", self._context("bogus"))
 
     def test_ignores_plans_readme(self) -> None:
         (self.root / "plans").mkdir(exist_ok=True)

@@ -51,7 +51,10 @@ def main() -> int:
         return 0
     try:
         text = Path(file_path).read_text(encoding="utf-8")
-    except OSError:
+    # UnicodeDecodeError included (issue #8): it is a ValueError, not an
+    # OSError, and an undecodable file must degrade to no verdict rather
+    # than crash a PostToolUse hook that cannot block anyway.
+    except (OSError, UnicodeDecodeError):
         return 0
     problems = []
     meta = parse_plan_frontmatter(text)

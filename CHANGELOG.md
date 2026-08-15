@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Quoted `specs:`/`authors:` frontmatter entries kept their quote characters, so a plan written
   in ordinary YAML read as owning no spec and `gate_spec_coverage` blocked the Stop naming a
   spec the plan owned (#9)
+- A non-UTF-8 file raised `UnicodeDecodeError` out of four gates and `preflight.py`, so one
+  unreadable plan stopped every other plan being judged (#8)
 
 ### Changed
 

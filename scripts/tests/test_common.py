@@ -21,7 +21,7 @@ from unittest import mock
 
 import _common
 
-from .support import TempDirCase, make_icm_tree
+from .support import TempDirCase, make_icm_tree, write_bytes
 
 
 def _status_proc(stdout: bytes, returncode: int = 0) -> mock.Mock:
@@ -272,6 +272,20 @@ class IterPlansTests(TempDirCase):
 
     def test_missing_plans_directory_yields_nothing(self) -> None:
         self.assertEqual(list(_common.iter_plans(self.root)), [])
+
+    def test_a_non_utf8_plan_does_not_stop_the_others(self) -> None:
+        # The defect in issue #8: `UnicodeDecodeError` is a `ValueError`,
+        # which `except OSError` never caught, so one latin-1 plan aborted
+        # the generator out of the caller's loop and took Invariant 1 down
+        # for the whole tree. The load-bearing assertion is that the good
+        # plan is still yielded - "bad.md" sorts first, so the generator
+        # must survive it to get there - not merely that nothing raises.
+        write_bytes(self.root, "plans/bad.md", b"---\nstatus: caf\xe9\n---\n")
+        (self.root / "plans" / "good.md").write_text(
+            "# good", encoding="utf-8"
+        )
+        found = list(_common.iter_plans(self.root))
+        self.assertEqual([path.name for path, _text in found], ["good.md"])
 
 
 class GitPendingPathsTests(unittest.TestCase):

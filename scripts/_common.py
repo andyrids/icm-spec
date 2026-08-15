@@ -243,7 +243,10 @@ def iter_plans(root: Path) -> Generator[tuple[Path, str], Any, None]:
     """Yield path and content of every plan document.
 
     NOTE: Excludes `README.md` and ignores unreadable files, so a broken plan
-    never wedges the gate.
+    never wedges the gate. Unreadable includes undecodable:
+    `UnicodeDecodeError` is a `ValueError`, which `except OSError` never
+    caught, so one non-UTF-8 plan aborted the generator out of the caller's
+    loop and stopped every other plan being judged (issue #8).
 
     Args:
         root: The project root directory.
@@ -259,7 +262,7 @@ def iter_plans(root: Path) -> Generator[tuple[Path, str], Any, None]:
             continue
         try:
             yield path, path.read_text(encoding="utf-8")
-        except OSError:
+        except (OSError, UnicodeDecodeError):
             continue
 
 

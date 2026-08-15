@@ -11,7 +11,7 @@ import unittest
 
 import gate_clarification
 
-from .support import TempDirCase, call_gate_main
+from .support import TempDirCase, call_gate_main, write_bytes
 
 
 class GateClarificationTests(TempDirCase):
@@ -57,6 +57,26 @@ class GateClarificationTests(TempDirCase):
         rc, _out, err = call_gate_main(gate_clarification, self.event)
         self.assertEqual(rc, 0)
         self.assertEqual(err, "")
+
+    def test_a_non_utf8_scratch_file_does_not_stop_the_others(self) -> None:
+        # `UnicodeDecodeError` is a `ValueError` that `except OSError`
+        # never caught (issue #8): one non-UTF-8 scratch file aborted the
+        # loop before the rest of the stage 01 output was scanned.
+        # "aa-bad.md" sorts before the marker file, so the gate must
+        # survive it to block - the open question still surfacing is the
+        # load-bearing assertion, not the absence of a crash.
+        write_bytes(
+            self.root,
+            "ICM/process-plan/stages/01-specification/output/aa-bad.md",
+            b"# techspec caf\xe9\n",
+        )
+        (self.outdir / "my-feature-spec.md").write_text(
+            "Auth is [NEEDS CLARIFICATION: which token scheme?] for now.\n",
+            encoding="utf-8",
+        )
+        rc, _out, err = call_gate_main(gate_clarification, self.event)
+        self.assertEqual(rc, 2)
+        self.assertIn("which token scheme", err)
 
     def test_ignores_other_prompts(self) -> None:
         (self.outdir / "my-feature-spec.md").write_text(
