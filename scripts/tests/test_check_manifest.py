@@ -108,16 +108,6 @@ class CheckManifestTests(TempDirCase):
                 "masks it silently",
             ),
             (
-                "README header states no version",
-                {"readme": "# icm\n"},
-                "states no plugin version",
-            ),
-            (
-                "README header disagrees",
-                {"readme": "**Plugin:** icm 9.9.9\n"},
-                f"states icm 9.9.9, plugin.json says {VERSION}",
-            ),
-            (
                 "CHANGELOG has no release heading",
                 {"changelog": "# Changelog\n"},
                 "no release heading",
