@@ -30,7 +30,11 @@ def plugin_version() -> str:
     manifest = SCRIPTS.parent / ".claude-plugin" / "plugin.json"
     try:
         data = json.loads(manifest.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    # UnicodeDecodeError included (issue #8): it is a ValueError raised by
+    # `read_text`, not `json.loads`, so neither guard caught it - and the
+    # banner is the positive signal, so it must degrade to "unknown", not
+    # vanish.
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return "unknown"
     return (
         str(data.get("version", "unknown"))

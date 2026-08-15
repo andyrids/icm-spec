@@ -40,7 +40,10 @@ def main() -> int:
     for path in sorted(root.glob("ICM/*/stages/01-*/output/*.md")):
         try:
             text = path.read_text(encoding="utf-8")
-        except OSError:
+        # UnicodeDecodeError included (issue #8): it is a ValueError, not an
+        # OSError, and without it one non-UTF-8 scratch file aborted the loop
+        # before the remaining stage 01 output could be scanned.
+        except (OSError, UnicodeDecodeError):
             continue
         if MARKER not in text:
             continue

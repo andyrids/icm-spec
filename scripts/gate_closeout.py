@@ -69,7 +69,10 @@ def main() -> int:
             continue
         try:
             text = (root / path).read_text(encoding="utf-8")
-        except OSError:
+        # UnicodeDecodeError included (issue #8): it is a ValueError, not an
+        # OSError, and without it one non-UTF-8 plan aborted the loop and
+        # stopped every other pending plan being judged.
+        except (OSError, UnicodeDecodeError):
             continue
         meta = parse_plan_frontmatter(text)
         if not meta or meta["status"] != "done":
