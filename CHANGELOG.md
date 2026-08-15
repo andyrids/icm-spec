@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `git_pending_paths` read git C-quoted octal escapes as path separators, mangling any
   non-ASCII path - it now reads `git status --porcelain -z`, which never quotes (#6)
 - `git_pending_paths` decoded `git status` output in the locale codepage rather than UTF-8 (#6)
+- Quoted `specs:`/`authors:` frontmatter entries kept their quote characters, so a plan written
+  in ordinary YAML read as owning no spec and `gate_spec_coverage` blocked the Stop naming a
+  spec the plan owned (#9)
 
 ### Changed
 

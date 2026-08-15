@@ -146,6 +146,80 @@ class ParsePlanFrontmatterTests(unittest.TestCase):
     def test_no_frontmatter_is_none(self) -> None:
         self.assertIsNone(_common.parse_plan_frontmatter("# Plan\n"))
 
+    def test_quoted_block_entries_read_as_bare_paths(self) -> None:
+        # The defect in issue #9: quoting a value is ordinary YAML, but the
+        # quote characters survived into the parsed entry, so the coverage
+        # key matched no path on disk and gate_spec_coverage blocked the
+        # Stop naming a spec the plan demonstrably owned.
+        meta = _common.parse_plan_frontmatter(
+            "---\n"
+            "specs:\n"
+            '  - "specs/commands/a.md"\n'
+            "  - 'specs/commands/b.md'\n"
+            "---\n"
+        )
+        assert meta is not None
+        self.assertEqual(
+            meta["specs"], ["specs/commands/a.md", "specs/commands/b.md"]
+        )
+
+    def test_quoted_inline_list_mixed_quote_styles(self) -> None:
+        # Issue #9's exact fixture: flow-sequence elements unquote
+        # per-element, each in its author's own quote style.
+        meta = _common.parse_plan_frontmatter(
+            "---\n"
+            "specs: [\"specs/a.md\", 'specs/b.md', specs/c.md]\n"
+            "---\n"
+        )
+        assert meta is not None
+        self.assertEqual(
+            meta["specs"], ["specs/a.md", "specs/b.md", "specs/c.md"]
+        )
+
+    def test_a_hash_inside_quotes_is_not_a_comment(self) -> None:
+        # The row that distinguishes the quote-aware `_strip_comment` from
+        # a naive reorder of strip and unquote: splitting on the first `#`
+        # unconditionally truncated this entry to `"specs/a` before any
+        # unquoting could see the pair (issue #9).
+        meta = _common.parse_plan_frontmatter(
+            '---\nspecs:\n  - "specs/a#b.md"\n---\n'
+        )
+        assert meta is not None
+        self.assertEqual(meta["specs"], ["specs/a#b.md"])
+
+    def test_a_quoted_entry_with_a_trailing_comment(self) -> None:
+        # The `#` after the closing quote is back outside the quoted
+        # region, so it is a comment again.
+        meta = _common.parse_plan_frontmatter(
+            '---\nspecs:\n  - "specs/a.md"  # trailing comment\n---\n'
+        )
+        assert meta is not None
+        self.assertEqual(meta["specs"], ["specs/a.md"])
+
+    def test_unbalanced_quotes_are_left_verbatim(self) -> None:
+        # `_unquote` strips exactly one matching surrounding pair: an
+        # internal apostrophe is a filename character, and an unterminated
+        # quote is the author's typo for a gate to name as written, not
+        # the parser's to guess at (issue #9).
+        meta = _common.parse_plan_frontmatter(
+            "---\n"
+            "specs:\n"
+            "  - specs/it's-a-file.md\n"
+            '  - "specs/open.md\n'
+            "---\n"
+        )
+        assert meta is not None
+        self.assertEqual(
+            meta["specs"], ["specs/it's-a-file.md", '"specs/open.md']
+        )
+
+    def test_a_quoted_status_reads_as_the_bare_enum_member(self) -> None:
+        # `status: "done"` is legal YAML today; the scalar site unquotes
+        # too, so it must not read as off-enum (issue #9).
+        meta = _common.parse_plan_frontmatter('---\nstatus: "done"\n---\n')
+        assert meta is not None
+        self.assertEqual(meta["status"], "done")
+
 
 class PlanSpecPathsTests(unittest.TestCase):
     def test_unions_both_fields_and_normalises_backslashes(self) -> None:
@@ -163,6 +237,21 @@ class PlanSpecPathsTests(unittest.TestCase):
                 "specs/commands/b.md",
                 "specs/behaviors/c.md",
             },
+        )
+
+    def test_quoted_frontmatter_flows_through_unquoted(self) -> None:
+        # End-to-end over the two helpers (issue #9): a quoted plan parses
+        # to bare paths, so the coverage set holds keys a `git status`
+        # payload can actually match.
+        meta = _common.parse_plan_frontmatter(
+            "---\n"
+            'specs:\n  - "specs/a.md"\n'
+            "authors:\n  - 'specs/b.md'\n"
+            "---\n"
+        )
+        assert meta is not None
+        self.assertEqual(
+            _common.plan_spec_paths(meta), {"specs/a.md", "specs/b.md"}
         )
 
 

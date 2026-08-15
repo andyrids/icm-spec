@@ -83,6 +83,25 @@ class GateSpecCoverageFlowTests(TempDirCase):
             self.assertEqual(rc, 0)
             self.assertEqual(err, "")
 
+    def test_a_quoted_specs_entry_opens_the_gate(self) -> None:
+        # Issue #9's user-visible symptom, end to end: the parser kept the
+        # quote characters, so a plan written in ordinary YAML read as
+        # owning no spec and the Stop blocked with "New spec(s) with no
+        # owning plan" - naming a spec the plan demonstrably owned, and
+        # advising the author to do the thing already done.
+        root = self.root
+        (root / "specs" / "commands").mkdir(parents=True)
+        (root / "specs" / "commands" / "quoted.md").write_text(
+            "# spec", encoding="utf-8"
+        )
+        write_plan(root, "owner", specs='\n  - "specs/commands/quoted.md"')
+        rc, _out, err = call_gate_main(
+            gate_spec_coverage,
+            {"cwd": str(root), "stop_hook_active": False},
+        )
+        self.assertEqual(rc, 0)
+        self.assertEqual(err, "")
+
 
 if __name__ == "__main__":
     unittest.main()

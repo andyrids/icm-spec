@@ -115,15 +115,52 @@ def frontmatter_lines(text: str) -> list[str] | None:
 
 
 def _strip_comment(value: str) -> str:
-    """Strip an inline comment from an unquoted scalar value.
+    """Strip an inline comment from a scalar value.
+
+    NOTE: Only a `#` outside a quoted region starts a comment. Splitting on
+    the first `#` unconditionally truncated `"specs/a#b.md"` to `"specs/a`
+    before `_unquote` could ever see the pair (issue #9) - so this runs
+    first and must be quote-aware, tracking single- and double-quote state.
+    An unterminated quote swallows the rest of the line, comment included,
+    which leaves the author's typo intact for a gate to name rather than
+    half-parsing it. Unquoted values behave exactly as before.
 
     Args:
-        value: The unquoted scalar value as a string.
+        value: The scalar value as a string.
 
     Returns:
         The value with the inline comment stripped.
     """
-    return value.split("#", 1)[0].strip()
+    quote = ""
+    for index, char in enumerate(value):
+        if quote:
+            if char == quote:
+                quote = ""
+        elif char in "\"'":
+            quote = char
+        elif char == "#":
+            return value[:index].strip()
+    return value.strip()
+
+
+def _unquote(value: str) -> str:
+    """Strip one matching pair of surrounding quotes from a scalar value.
+
+    NOTE: Deliberately conservative (issue #9): exactly one pair, and only
+    when both ends match, so an internal apostrophe (`it's-a-file.md`) and
+    an unterminated quote are left verbatim - a value the parser cannot
+    read cleanly should surface in a gate's message as written, not be
+    half-corrected into a path that exists nowhere.
+
+    Args:
+        value: The comment-stripped scalar value as a string.
+
+    Returns:
+        The value with its surrounding quote pair removed, or unchanged.
+    """
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        return value[1:-1]
+    return value
 
 
 def parse_plan_frontmatter(text: str) -> dict[str, Any] | None:
@@ -151,19 +188,29 @@ def parse_plan_frontmatter(text: str) -> dict[str, Any] | None:
         stripped = line.strip()
         if line.startswith((" ", "\t")):
             if list_key and stripped.startswith("- "):
-                result[list_key].append(_strip_comment(stripped[2:]))
+                result[list_key].append(
+                    _unquote(_strip_comment(stripped[2:]))
+                )
             continue
         list_key = None
         if ":" not in stripped:
             continue
         key, _, value = stripped.partition(":")
         key = key.strip()
-        value = _strip_comment(value)
+        # Unquoted at every site a value is read (issue #9): quoting a value
+        # is ordinary YAML, and a surviving quote character breaks every
+        # comparison downstream - a coverage key that matches no `git status`
+        # payload, a `status: "done"` off the enum. Here rather than in
+        # `plan_spec_paths`, because `gate_plan_frontmatter` iterates the
+        # parsed lists directly and must see the same bare values.
+        value = _unquote(_strip_comment(value))
         if key in LIST_KEYS:
             if value.startswith("[") and value != "[]":
                 inner = value.strip("[]")
                 result[key] = [
-                    v.strip() for v in inner.split(",") if v.strip()
+                    _unquote(v.strip())
+                    for v in inner.split(",")
+                    if v.strip()
                 ]
             else:
                 list_key = key
