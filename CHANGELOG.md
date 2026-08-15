@@ -18,22 +18,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+### Fixed
+
+- `git_pending_paths` read git C-quoted octal escapes as path separators, mangling any
+  non-ASCII path - it now reads `git status --porcelain -z`, which never quotes (#6)
+- `git_pending_paths` decoded `git status` output in the locale codepage rather than UTF-8 (#6)
+
 ### Changed
 
-- Replaced `scripts/tests/test_gates.py` with a layered `unittest` package (`scripts/tests/`).
+- Replaced `scripts/tests/test_gates.py` with a layered `unittest` package (`scripts/tests/`)
 
 ## [1.0.1] - 2026-08-14
 
 ### Fixed
 
-- `gate_spec_coverage.py` matched the porcelain status as a whole word.
-- `git_pending_paths` returned a rename's `old -> new` payload as a single path.
+- `gate_spec_coverage.py` matched the porcelain status as a whole word
+- `git_pending_paths` returned a rename's `old -> new` payload as a single path
 - `git_pending_paths` was annotated `-> list[str]` while returning `(status, path)` pairs
 
 ### Changed
 
-- `gate_spec_coverage.py` blocks a renamed spec at its destination - coverage is keyed on the
-  path, so a rename leaves every plan's `specs:` entry pointing at a file that no longer exists
+- `gate_spec_coverage.py` previously blocked a renamed spec at its destination
 
 ### Added
 

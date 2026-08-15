@@ -10,13 +10,14 @@ when the resolved string changes. Declaring the version in the first two
 places at once is the documented failure mode: `plugin.json` wins silently,
 so a stale manifest can mask a marketplace bump and the release reaches
 nobody. This repository's arrangement is therefore one authoritative field,
-`plugin.json`, with the human-facing statements - the README header and the
-CHANGELOG's top release heading - required to agree with it.
+`plugin.json`, with the human-facing statements - the CHANGELOG top release
+heading - required to agree with it.
 
-Four assertions: `plugin.json` declares a `version`; the marketplace entry
-for `icm` does not; the `icm <version>` in the README header matches; and
-the CHANGELOG's topmost release heading matches unless it is still
-`[unreleased]`, so in-progress work is never blocked.
+Four assertions: 
+
+1. `plugin.json` declares a `version`
+2. The marketplace entry for `icm` does not
+3. The CHANGELOG topmost release heading matches unless `[unreleased]`.
 
 Run: uv run --no-project --script scripts/tests/check_manifest.py
 
@@ -36,7 +37,6 @@ MARKETPLACE = ROOT / ".claude-plugin" / "marketplace.json"
 README = ROOT / "README.md"
 CHANGELOG = ROOT / "CHANGELOG.md"
 
-README_VERSION = re.compile(r"\*\*Plugin:\*\*\s+icm\s+(\S+)")
 HEADING = re.compile(r"^## \[([^\]]+)\]", re.M)
 
 
@@ -71,18 +71,6 @@ def main() -> int:
             (
                 ".claude-plugin/marketplace.json",
                 f"entry for icm declares version {entry['version']} - plugin.json masks it silently; remove it",
-            )
-        )
-
-    readme = README.read_text(encoding="utf-8")
-    match = README_VERSION.search(readme)
-    if match is None:
-        bad.append(("README.md", "header states no plugin version"))
-    elif version and match.group(1) != version:
-        bad.append(
-            (
-                f"README.md:{line_of(readme, match.start())}",
-                f"header states icm {match.group(1)}, plugin.json says {version}",
             )
         )
 

@@ -133,12 +133,16 @@ def git_commit_all(root: Path) -> None:
 
 
 def porcelain(root: Path, subdir: str) -> list[str]:
-    """The exact `git status --porcelain` lines the gate will read.
+    """The newline-porcelain v1 lines for `subdir` - an independent oracle.
 
-    Every matrix row asserts the code its fixture actually reached. A
-    fixture that degrades quietly - a rename landing as D+A, an edit git
-    calls racily clean - turns a regression test green for the wrong
-    reason, and the status column is the thing under test.
+    Deliberately NOT the invocation the gates read: `git_pending_paths`
+    moved to `-z` NUL records (issue #6), and keeping this human-readable
+    form separate is what lets the non-ASCII rows assert git's C-quoted
+    line first and the gate's clean verdict second. Every matrix row
+    asserts the code its fixture actually reached. A fixture that degrades
+    quietly - a rename landing as D+A, an edit git calls racily clean -
+    turns a regression test green for the wrong reason, and the status
+    column is the thing under test.
 
     Args:
         root: The repository to inspect.

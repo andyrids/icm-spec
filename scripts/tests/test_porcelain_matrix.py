@@ -1,4 +1,4 @@
-"""Layer B+git: the porcelain status matrix behind issue #1.
+"""Layer B+git: the porcelain status matrix behind issues #1 and #6.
 
 Each row builds a fixture, asserts the status code git actually
 produced, then asserts the verdict. The fixture-shape assertion comes
@@ -249,6 +249,81 @@ class ClosePlanRenameTests(TempDirCase):
         # splits the `old -> new` payload on the wrong side.
         self.assertNotIn(" -> ", err)
         self.assertNotIn("old-plan", err)
+
+
+class NonAsciiPathTests(TempDirCase):
+    """A non-ASCII path must reach the gates as the file on disk (#6).
+
+    Newline porcelain C-quotes any non-plain path, and the old parse read
+    the surviving octal escapes as directories: `specs/café.md` became
+    `specs/caf/303/251.md`, deadlocking the coverage gate and letting the
+    closeout gate fail open on a FileNotFoundError. Each row asserts the
+    quoted line via the `porcelain` oracle FIRST - proof that git still
+    quotes and the gate stopped caring, not that the fixture stopped
+    triggering. Filenames carrying `"`, backslash or control characters
+    cannot exist on NTFS, so those trigger classes live only in the mocked
+    rows of `test_common.py`.
+    """
+
+    scaffold_icm = False  # each row builds its own repo via case_repo
+    scaffold_git = False
+
+    # What newline porcelain makes of `café` under the default
+    # `core.quotepath=true`: C-quoted, é octal-escaped byte by byte.
+    QUOTED_SPEC = '?? "specs/commands/caf\\303\\251.md"'
+
+    def _coverage(self, repo: Path) -> tuple[int, str, str]:
+        return call_gate_main(
+            gate_spec_coverage,
+            {"cwd": str(repo), "stop_hook_active": False},
+        )
+
+    def _closeout(self, repo: Path) -> tuple[int, str, str]:
+        return call_gate_main(
+            gate_closeout, {"cwd": str(repo), "stop_hook_active": False}
+        )
+
+    def test_uncovered_nonascii_spec_blocks_naming_the_real_path(
+        self,
+    ) -> None:
+        repo = case_repo(self.root, "nonascii-uncovered")
+        write_spec(repo, "café")
+        self.assertEqual(porcelain(repo, "specs"), [self.QUOTED_SPEC])
+        rc, _out, err = self._coverage(repo)
+        self.assertEqual(rc, 2)
+        # The block must name a path the author can act on - the file on
+        # disk, not the phantom `/303/` directories the old parse built.
+        self.assertIn("specs/commands/café.md", err)
+        self.assertNotIn("/303/", err)
+
+    def test_covered_nonascii_spec_passes(self) -> None:
+        # Claim A of #6 made executable: before the fix no frontmatter
+        # value could satisfy the gate, because the plan names the real
+        # path and the gate compared against the mangled one.
+        repo = case_repo(self.root, "nonascii-covered")
+        write_spec(repo, "café")
+        write_plan(
+            repo, "owner", authors="\n  - specs/commands/café.md"
+        )
+        self.assertEqual(porcelain(repo, "specs"), [self.QUOTED_SPEC])
+        rc, _out, err = self._coverage(repo)
+        self.assertEqual(rc, 0)
+        self.assertEqual(err, "")
+
+    def test_done_nonascii_plan_with_empty_pr_blocks(self) -> None:
+        # Claim B of #6: the mangled path raised FileNotFoundError inside
+        # gate_closeout's `except OSError`, so a half-closed plan slid
+        # through. With the real path the plan opens and is judged.
+        repo = case_repo(self.root, "nonascii-closeout")
+        write_plan(repo, "café-plan", status="done", pr="")
+        self.assertEqual(
+            porcelain(repo, "plans"),
+            ['?? "plans/caf\\303\\251-plan.md"'],
+        )
+        rc, _out, err = self._closeout(repo)
+        self.assertEqual(rc, 2)
+        self.assertIn("plans/café-plan.md", err)
+        self.assertIn("pr:", err)
 
 
 if __name__ == "__main__":
