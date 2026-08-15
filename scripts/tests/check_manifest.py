@@ -10,10 +10,12 @@ when the resolved string changes. Declaring the version in the first two
 places at once is the documented failure mode: `plugin.json` wins silently,
 so a stale manifest can mask a marketplace bump and the release reaches
 nobody. This repository's arrangement is therefore one authoritative field,
-`plugin.json`, with the human-facing statements - the CHANGELOG top release
-heading - required to agree with it.
+`plugin.json`, with the one human-facing statement - the CHANGELOG top
+release heading - required to agree with it. The README deliberately
+restates no version: the CHANGELOG and the GitHub release carry it, so
+there is nothing there to drift and nothing here to check.
 
-Four assertions: 
+Three assertions:
 
 1. `plugin.json` declares a `version`
 2. The marketplace entry for `icm` does not
@@ -34,7 +36,6 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 
 PLUGIN = ROOT / ".claude-plugin" / "plugin.json"
 MARKETPLACE = ROOT / ".claude-plugin" / "marketplace.json"
-README = ROOT / "README.md"
 CHANGELOG = ROOT / "CHANGELOG.md"
 
 HEADING = re.compile(r"^## \[([^\]]+)\]", re.M)
@@ -88,7 +89,7 @@ def main() -> int:
 
     for where, why in bad:
         print(f"  DRIFT  {where:<15} {why}")
-    print(f"\n4 version statements checked, {len(bad)} in disagreement")
+    print(f"\n3 version statements checked, {len(bad)} in disagreement")
     return 1 if bad else 0
 
 

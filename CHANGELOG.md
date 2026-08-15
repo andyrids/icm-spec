@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Replaced `scripts/tests/test_gates.py` with a layered `unittest` package (`scripts/tests/`)
+- `check_manifest.py` no longer checks the README, which restates no version
 
 ## [1.0.1] - 2026-08-14
 

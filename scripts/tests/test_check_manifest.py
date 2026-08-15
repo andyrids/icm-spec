@@ -1,6 +1,6 @@
 """Companion tests for `check_manifest.py`; the program is unchanged.
 
-The four version statements are fixture files here, so every drift case
+The three version statements are fixture files here, so every drift case
 is reachable - `just test-manifest` still runs the program against the
 real repository.
 
@@ -29,7 +29,6 @@ class CheckManifestTests(TempDirCase):
         self,
         plugin: dict | None = None,
         marketplace: dict | None = None,
-        readme: str | None = None,
         changelog: str | None = None,
     ) -> tuple[int, str]:
         """Run `main()` against fixture files, agreeing by default."""
@@ -39,14 +38,11 @@ class CheckManifestTests(TempDirCase):
             plugin = {"version": VERSION}
         if marketplace is None:
             marketplace = {"plugins": [{"name": "icm"}]}
-        if readme is None:
-            readme = f"**Plugin:** icm {VERSION}\n"
         if changelog is None:
             changelog = f"## [{VERSION}] - 2026-01-01\n"
         files = {
             "plugin.json": json.dumps(plugin),
             "marketplace.json": json.dumps(marketplace),
-            "README.md": readme,
             "CHANGELOG.md": changelog,
         }
         for name, text in files.items():
@@ -59,9 +55,6 @@ class CheckManifestTests(TempDirCase):
                 check_manifest,
                 "MARKETPLACE",
                 self.root / "marketplace.json",
-            ),
-            mock.patch.object(
-                check_manifest, "README", self.root / "README.md"
             ),
             mock.patch.object(
                 check_manifest, "CHANGELOG", self.root / "CHANGELOG.md"

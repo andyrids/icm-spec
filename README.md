@@ -634,9 +634,10 @@ uv run --no-project --script scripts/tests/check_manifest.py
   is the smell
 - **`check_budgets.py`**: No file exceeds the `maximum-context-tokens` its own frontmatter
   declares and warns at 90%
-- **`check_manifest.py`**: The version agrees everywhere it is stated - `plugin.json`, the
-  README header, the CHANGELOG release heading - and the marketplace entry declares none,
-  because a manifest version silently masks it
+- **`check_manifest.py`**: The version agrees everywhere it is stated - `plugin.json` and the
+  CHANGELOG release heading - and the marketplace entry declares none, because a manifest
+  version silently masks it. The README restates no version by design; the CHANGELOG and the
+  GitHub release carry it
 
 `check_paths.py` takes an optional path argument, so you can point it at your own project rather
 than the templates - useful after you have added specs and reference files of your own.
