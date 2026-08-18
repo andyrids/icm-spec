@@ -242,9 +242,9 @@ its stage.
 
 ### Layer 3
 
-Two roles share this layer. Reference material is the factory configuration and is
-`immutable: true`, budgeted at 2500 tokens. Specs are `immutable: false` and unbudgeted - the
-pipeline exists to amend them and a spec is as long as the behaviour it declares.
+One role, two immutability postures. The factory configuration is `immutable: true` and
+budgeted at 2500 tokens. Specs are `immutable: false` and unbudgeted - the pipeline exists to
+amend them and a spec is as long as the behaviour it declares.
 
 - Category: Content
 - Role: Reference material
@@ -513,6 +513,11 @@ in unrelated repositories that happen to own a `specs/` folder.
   - *Effect*: advise
   - *What it protects*: Cannot block; feeds context back on an invalid `status`, an unresolvable
     spec path, a spec in both list fields, or a missing Layer 4 key
+- **`gate_spec_frontmatter`**
+  - *Fires on*: after a spec write
+  - *Effect*: advise
+  - *What it protects*: Cannot block; feeds context back when a spec is missing its frontmatter
+    block or a Layer 3 key. The block is what makes the spec routable by layer
 - **`gate_spec_coverage`**
   - *Fires on*: session stop
   - *Effect*: block

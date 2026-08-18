@@ -33,6 +33,17 @@ EXPECTED_HIERARCHY = {
 }
 """Plan frontmatter matching expected Layer 4 hierarchy."""
 
+SPEC_HIERARCHY = {
+    "context-hierarchy": "Layer 3",
+    "context-hierarchy-role": "Reference material",
+    "immutable": "false",
+}
+"""Spec frontmatter matching expected Layer 3 hierarchy.
+
+Carries no `maximum-context-tokens`: specs are unbudgeted by design
+(`AGENTS.md`), so only the three routing keys are contracted.
+"""
+
 SLUG_SUFFIX_BY_STAGE = {
     "01": "spec",
     "02": "code",
@@ -168,6 +179,43 @@ def _unquote(value: str) -> str:
     if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
         return value[1:-1]
     return value
+
+
+def parse_hierarchy(
+    text: str, expected: dict[str, str]
+) -> dict[str, str | None] | None:
+    """Extract the hierarchy keys of `expected` from a document's frontmatter.
+
+    NOTE: Scalar keys only, and only the keys asked for - anything else in
+    the block is left alone. `parse_plan_frontmatter` is not reusable here:
+    it owns `status`, `pr` and the list keys, which no other layer carries.
+    Values pass through `_strip_comment` then `_unquote`, so a commented or
+    quoted value compares as the bare string a gate reports (issue #9).
+
+    Args:
+        text: The markdown document as a string.
+        expected: The hierarchy mapping whose keys are read, such as
+            `EXPECTED_HIERARCHY` or `SPEC_HIERARCHY`.
+
+    Returns:
+        A dict with one entry per key of `expected`, each the parsed value
+        or None when the key is absent, or None if no frontmatter is found.
+    """
+    lines = frontmatter_lines(text)
+    if lines is None:
+        return None
+    result: dict[str, str | None] = dict.fromkeys(expected)
+    for line in lines:
+        if line.startswith((" ", "\t")):
+            continue
+        stripped = line.strip()
+        if ":" not in stripped:
+            continue
+        key, _, value = stripped.partition(":")
+        key = key.strip()
+        if key in expected:
+            result[key] = _unquote(_strip_comment(value)) or None
+    return result
 
 
 def parse_plan_frontmatter(text: str) -> dict[str, Any] | None:

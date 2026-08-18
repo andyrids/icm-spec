@@ -43,6 +43,23 @@ Subdirectories are created as the project needs them, not up front. The names ab
 illustrative - a project without a CLI has no `commands/`, and one that serves no MCP has no
 `mcp/`. Group by the shape of the thing being specified, one file per unit.
 
+## Frontmatter
+
+```yaml
+---
+context-hierarchy: Layer 3
+context-hierarchy-role: Reference material
+immutable: false
+tags: [keyword, ...]   # what this spec is about, for retrieval
+---
+```
+
+Every file under `specs/**` carries it, `specs/principles.md` included, and the block is what
+makes the file routable by layer. There is no `maximum-context-tokens` key - specs are unbudgeted
+by design, because a spec is as long as the behaviour it declares. `immutable: false` is what
+separates a spec from the factory configuration sharing this layer: the pipeline exists to amend
+specs, and stage 01 owns every amendment.
+
 ## What specs cover
 
 Invocation and inputs, data requirements, outputs, failure modes, out of scope, and principles.

@@ -107,6 +107,28 @@ class ProcessContractTests(TempDirCase):
             "bogus", specific_output(proc).get("additionalContext", "")
         )
 
+    def test_gate_spec_frontmatter(self) -> None:
+        (self.root / "specs" / "commands").mkdir(parents=True)
+        (self.root / "specs" / "commands" / "find.md").write_text(
+            "# Command: acme find", encoding="utf-8"
+        )
+        proc = run_gate_subprocess(
+            "gate_spec_frontmatter.py",
+            {
+                "cwd": str(self.root),
+                "tool_input": {
+                    "file_path": str(
+                        self.root / "specs" / "commands" / "find.md"
+                    )
+                },
+            },
+        )
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn(
+            "no YAML frontmatter block",
+            specific_output(proc).get("additionalContext", ""),
+        )
+
     def test_gate_spec_coverage(self) -> None:
         (self.root / "specs" / "commands").mkdir(parents=True)
         (self.root / "specs" / "commands" / "orphan.md").write_text(

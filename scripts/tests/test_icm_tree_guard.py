@@ -19,6 +19,7 @@ import gate_output_naming
 import gate_plan_frontmatter
 import gate_spec_coverage
 import gate_spec_edit
+import gate_spec_frontmatter
 import preflight
 
 from .support import TempDirCase, call_gate_main, write_plan
@@ -80,6 +81,20 @@ class IcmTreeGuardTests(TempDirCase):
                 "cwd": str(self.root),
                 "tool_input": {
                     "file_path": str(self.root / "plans" / "bogus.md")
+                },
+            },
+        )
+        self.assertEqual(out.strip(), "")
+
+    def test_gate_spec_frontmatter_stays_silent(self) -> None:
+        _rc, out, _err = call_gate_main(
+            gate_spec_frontmatter,
+            {
+                "cwd": str(self.root),
+                "tool_input": {
+                    "file_path": str(
+                        self.root / "specs" / "commands" / "orphan.md"
+                    )
                 },
             },
         )

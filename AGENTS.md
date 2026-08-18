@@ -28,7 +28,7 @@ has reached it - reading ahead is how a stage acquires context it was designed n
 | 2     | Stage routing     | `ICM/*/CONTEXT.md`              | false       | 500    |
 | 2     | Stage contract    | `ICM/*/stages/**/CONTEXT.md`    | false       | 500    |
 | 3     | Reference material| `ICM/_config/reference-*.md`, both READMEs | true | 2500 |
-| 3     | Desired state     | `specs/**/*.md`                 | false       | -      |
+| 3     | Reference material| `specs/**/*.md`                 | false       | -      |
 | 4     | Working artifact  | `plans/*.md`                    | false       | -      |
 | 4     | Working artifact  | `ICM/*/stages/**/output/*.md`   | false       | -      |
 
