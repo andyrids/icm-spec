@@ -24,7 +24,10 @@ import sys
 from _common import is_icm_project, project_dir, read_event
 
 MARKER = "[NEEDS CLARIFICATION"
+"""Unresolved question marker in Stage 01 output."""
+
 QUESTION = re.compile(r"\[NEEDS CLARIFICATION[^\]]*\]")
+"""Regex to find unresolved questions in Stage 01 output."""
 
 
 def main() -> int:

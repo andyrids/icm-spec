@@ -1,8 +1,8 @@
 """Shared helpers for the ICM gate hook scripts.
 
-Every gate reads one hook event as JSON on stdin and answers on stdout (JSON
-`hookSpecificOutput`) or via exit code. Exit 2 is reserved for hard blocks;
-anything unexpected degrades to exit 0 so a broken gate never wedges a session.
+Every gate reads one hook event as JSON on STDIN and answers on STDOUT (JSON
+`hookSpecificOutput`) or via exit code. Exit 2 is reserved for hard blocks.
+Anything unexpected degrades to exit 0 (broken gates never wedge a session).
 
 License:
     SPDX-License-Identifier: Apache-2.0
@@ -16,11 +16,14 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 STATUS_ENUM = {"planned", "in-progress", "done", "blocked", "cancelled"}
+"""Plan frontmatter `status` values."""
 
-# The two plan frontmatter fields that answer Invariant 1. `specs` names
-# conformance targets, `authors` names specs the plan writes without changing
-# code - a distinction the coverage gate needs and stage 03 must not blur.
 LIST_KEYS = ("specs", "authors")
+"""Plan frontmatter keys whose values are lists of spec paths, each a string.
+
+`specs` names conformance targets, `authors` names specs the plan writes
+without changing code.
+"""
 
 # Layer 4 hierarchy keys every plan carries (AGENTS.md).
 EXPECTED_HIERARCHY = {
@@ -28,6 +31,7 @@ EXPECTED_HIERARCHY = {
     "context-hierarchy-role": "Working artifact",
     "immutable": "false",
 }
+"""Plan frontmatter matching expected Layer 4 hierarchy."""
 
 SLUG_SUFFIX_BY_STAGE = {
     "01": "spec",
@@ -35,16 +39,19 @@ SLUG_SUFFIX_BY_STAGE = {
     "03": "test",
     "04": "docs",
 }
+"""Stage slug suffixes for the four Layer 4 stages."""
 
-# Porcelain v1 unmerged codes (git-status(1)). "DD", "DU" and "UD" carry a "D"
-# and the delete guard in `git_pending_paths` would drop them anyway; naming the
-# whole set makes "AA", "AU", "UA" and "UU" a decision rather than a side-effect
-# of that guard. A conflicted path is a merge in motion, not work under review:
-# the file holds conflict markers, `plans/` may itself be half-resolved, and the
-# only honest next action is to resolve, not to edit frontmatter. Nothing
-# escapes - once resolved and staged the same path presents as "A ", "AM" or
-# "M " and is judged on the next Stop.
 GIT_UNMERGED = frozenset({"DD", "AU", "UD", "UA", "DU", "AA", "UU"})
+"""Porcelain v1 unmerged git status codes.
+
+"DD", "DU" and "UD" carry a "D" and the delete guard in `git_pending_paths`
+would drop them anyway; naming the whole set makes "AA", "AU", "UA" and "UU"
+a decision rather than a side-effect of that guard. A conflicted path is a
+merge in motion, not work under review: the file holds conflict markers,
+`plans/` may itself be half-resolved, and the only honest next action is to
+resolve, not to edit frontmatter. Nothing escapes - once resolved and staged
+the same path presents as "A ", "AM" or "M " and is judged on the next Stop.
+"""
 
 
 def read_event() -> dict[str, Any]:

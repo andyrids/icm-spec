@@ -24,6 +24,7 @@ from _common import (
 )
 
 OPEN_STATUSES = {"planned", "in-progress"}
+"""Open plan statuses."""
 
 
 def main() -> int:

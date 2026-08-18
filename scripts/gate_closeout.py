@@ -29,6 +29,7 @@ from _common import (
 )
 
 UNTICKED_RE = re.compile(r"^\s*- \[ \]", re.MULTILINE)
+"""Regex to find unticked Validation boxes in a plan."""
 
 
 def section(text: str, name: str) -> str:
@@ -83,8 +84,8 @@ def main() -> int:
             text, "Notes"
         ):
             failures.append(
-                f"{path}: unticked Validation boxes with an empty Notes section - record "
-                "why each box stays unticked"
+                f"{path}: unticked Validation boxes with an empty Notes "
+                "section - record why each box stays unticked"
             )
     if not failures:
         return 0

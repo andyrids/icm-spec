@@ -671,3 +671,18 @@ Layer 1 router with the question that selects it.
 All six are user-invoked only - they carry `disable-model-invocation: true`, so the model cannot
 enter a stage on its own initiative. Entering a pipeline is your decision, every time. Where the
 slug argument is optional, an unambiguous open plan is used and you are asked when it is ambiguous.
+
+## Attribution
+
+### `JarvusInnovations/specops` | `IBM/iac-spec-kit` | `github/spec-kit`
+
+I looked at existing repos focused on spec-driven development (SSD), which were useful in
+determining what functionality and aspects are best to combine with ICM.
+
+- **Repository**:
+  - [JarvusInnovations/specops](https://github.com/JarvusInnovations/specops)
+    - **License**: N/A
+  - [IBM/iac-spec-kit](https://github.com/IBM/iac-spec-kit)
+    - **License**: MIT License - Copyright (c) 2025 Copyright International Business Machines
+  - [IBM/iac-spec-kit](https://github.com/github/spec-kit)
+    - **License**: MIT License - Copyright (c) 2026 Copyright GitHub, Inc
