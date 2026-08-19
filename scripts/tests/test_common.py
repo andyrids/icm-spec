@@ -299,12 +299,29 @@ class GitPendingPathsTests(unittest.TestCase):
     this filesystem can produce.
     """
 
-    def _pending(self, stdout: bytes) -> list[tuple[str, str]]:
+    def _pending(
+        self,
+        stdout: bytes,
+        root: Path | None = None,
+        toplevel: mock.Mock | BaseException | None = None,
+    ) -> list[tuple[str, str]]:
+        """Run `git_pending_paths` with both subprocess calls faked.
+
+        The first `subprocess.run` is the porcelain status call, the second
+        is `git rev-parse --show-toplevel` (issue #13). By default the
+        faked toplevel IS the root, so the computed prefix is empty and
+        every payload passes through as-is - the shape of the historical
+        single-call fixtures. Pass `toplevel` as a canned proc for a
+        different toplevel, or as an exception instance to fail that call.
+        """
+        root = Path(".").resolve() if root is None else root
+        if toplevel is None:
+            toplevel = _status_proc(f"{root}\n".encode())
         with mock.patch(
             "_common.subprocess.run",
-            return_value=_status_proc(stdout),
+            side_effect=[_status_proc(stdout), toplevel],
         ):
-            return _common.git_pending_paths(Path("."), "specs")
+            return _common.git_pending_paths(root, "specs")
 
     def test_status_column_is_positional(self) -> None:
         # The raw two-character column, spaces preserved: callers test
@@ -415,6 +432,80 @@ class GitPendingPathsTests(unittest.TestCase):
     def test_short_records_are_skipped(self) -> None:
         # Also covers the empty field after the final NUL terminator.
         self.assertEqual(self._pending(b"??\x00"), [])
+
+    def test_toplevel_prefix_is_rebased_onto_the_root(self) -> None:
+        # The defect in issue #13: porcelain reports paths relative to the
+        # repository toplevel regardless of `cwd`, while every caller
+        # compares against ICM-root-relative paths - so a nested ICM tree
+        # could only clear coverage with frontmatter that was wrong. Rows
+        # are `(root, toplevel, stdout, expected)`: the prefix is stripped
+        # when the tree is nested, empty when root IS the toplevel, and any
+        # failure to establish the toplevel degrades to passthrough.
+        repo = Path(".").resolve()
+        nested = repo / "sub"
+        def top_ok() -> mock.Mock:
+            return _status_proc(f"{repo}\n".encode())
+
+        rows = [
+            (
+                "icm root is the repo root: prefix empty",
+                repo,
+                top_ok(),
+                b"?? specs/a.md\x00",
+                [("??", "specs/a.md")],
+            ),
+            (
+                "icm root nested one level: prefix stripped",
+                nested,
+                top_ok(),
+                b"?? sub/specs/a.md\x00A  sub/plans/p.md\x00",
+                [("??", "specs/a.md"), ("A ", "plans/p.md")],
+            ),
+            (
+                "prefix matches whole components only, never a sibling",
+                nested,
+                top_ok(),
+                b"?? subx/specs/a.md\x00",
+                [("??", "subx/specs/a.md")],
+            ),
+            (
+                "rev-parse missing git: degrade to passthrough",
+                nested,
+                OSError("no git"),
+                b"?? sub/specs/a.md\x00",
+                [("??", "sub/specs/a.md")],
+            ),
+            (
+                "rev-parse timeout: degrade to passthrough",
+                nested,
+                subprocess.TimeoutExpired("git", 15),
+                b"?? sub/specs/a.md\x00",
+                [("??", "sub/specs/a.md")],
+            ),
+            (
+                "rev-parse non-zero (not a repo): degrade to passthrough",
+                nested,
+                _status_proc(b"fatal", returncode=128),
+                b"?? sub/specs/a.md\x00",
+                [("??", "sub/specs/a.md")],
+            ),
+            (
+                # The adversarial row: `root` outside the decoded toplevel
+                # (differing symlink resolution, fixtures) must degrade,
+                # not raise an uncaught ValueError out of the gate.
+                "root not below the toplevel: degrade to passthrough",
+                nested,
+                _status_proc(f"{repo / 'elsewhere'}\n".encode()),
+                b"?? sub/specs/a.md\x00",
+                [("??", "sub/specs/a.md")],
+            ),
+        ]
+        for name, root, toplevel, stdout, expected in rows:
+            with self.subTest(name=name):
+                self.assertEqual(
+                    self._pending(stdout, root=root, toplevel=toplevel),
+                    expected,
+                )
 
     def test_git_failure_degrades_to_empty(self) -> None:
         # No repository means no verdict rather than a crash.

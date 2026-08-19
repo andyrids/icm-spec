@@ -339,12 +339,16 @@ def git_pending_paths(root: Path, subdir: str) -> list[tuple[str, str]]:
         test `status[0]` or `status[1]` and never `status.strip()`, which
         collapses "A " and "AM" onto different strings and silently drops the
         second. `path` is the file exactly as it exists in the working tree,
-        relative with `/` separators - `-z` output carries no quoting for the
-        parse to undo (issue #6). For a rename or copy git emits the
-        destination record first with the origin as the following NUL field,
-        and only the destination is returned, because it is the only side a
-        gate can open. Unmerged entries and anything deleted from the working
-        tree are omitted - there is no file there to hold to a contract.
+        relative to `root` with `/` separators - porcelain reports paths
+        relative to the repository toplevel regardless of `cwd`, so when
+        `root` sits below the toplevel the leading prefix is stripped before
+        callers compare against ICM-root-relative frontmatter (issue #13) -
+        and `-z` output carries no quoting for the parse to undo (issue #6).
+        For a rename or copy git emits the destination record first with the
+        origin as the following NUL field, and only the destination is
+        returned, because it is the only side a gate can open. Unmerged
+        entries and anything deleted from the working tree are omitted -
+        there is no file there to hold to a contract.
     """
     try:
         proc = subprocess.run(
@@ -358,6 +362,38 @@ def git_pending_paths(root: Path, subdir: str) -> list[tuple[str, str]]:
         return []
     if proc.returncode != 0:
         return []
+    # Porcelain paths are relative to the repository toplevel regardless of
+    # the subprocess's `cwd`, while every caller compares against paths
+    # relative to `root` (issue #13). Establish the toplevel->root prefix so
+    # each record can be rebased below; any failure here degrades to an
+    # empty prefix, keeping today's passthrough behaviour rather than
+    # introducing a new failure mode.
+    prefix = ""
+    try:
+        top = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=root,
+            capture_output=True,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        top = None
+    if top is not None and top.returncode == 0:
+        decoded = top.stdout.decode("utf-8", errors="surrogateescape")
+        repo_top = Path(decoded.rstrip("\r\n")).resolve()
+        try:
+            # `root` may legitimately not be a subpath of the decoded
+            # toplevel (differing symlink resolution, test fixtures); that
+            # is a degrade, never an uncaught ValueError out of a gate.
+            relative = root.resolve().relative_to(repo_top)
+        except ValueError:
+            relative = None
+        if relative is not None:
+            posix = str(PurePosixPath(relative))
+            # "." means `root` IS the toplevel: nothing to strip.
+            if posix != ".":
+                prefix = posix
     # Decoded by hand rather than via `text=True` or `encoding=`: both wrap
     # stdout in a TextIOWrapper whose universal-newline translation would
     # rewrite a `\r` inside a POSIX filename, and `text=True` also decodes in
@@ -376,6 +412,11 @@ def git_pending_paths(root: Path, subdir: str) -> list[tuple[str, str]]:
         if len(record) < 4:
             continue
         status, path = record[:2], record[3:]
+        # Rebase a toplevel-relative payload onto `root` (issue #13); with
+        # an empty prefix (root IS the toplevel, or the toplevel could not
+        # be established) the path passes through as-is.
+        if prefix and path.startswith(f"{prefix}/"):
+            path = path[len(prefix) + 1 :]
         # A rename or copy record is `XY <dest>` with the origin path as the
         # *next* NUL field (`-z` reverses v1's `orig -> dest` and drops the
         # arrow, deleting the ambiguity a path containing " -> " used to
