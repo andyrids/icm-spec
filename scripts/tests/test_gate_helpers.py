@@ -92,13 +92,13 @@ class OutputPathRegexTests(unittest.TestCase):
                 match = gate_output_naming.OUTPUT_RE.match(path)
                 self.assertIs(match is not None, expected)
 
-    def test_output_re_captures_stage_number_and_name(self) -> None:
+    def test_output_re_captures_workspace_stage_number_and_name(self) -> None:
         match = gate_output_naming.OUTPUT_RE.match(
             "ICM/process-plan/stages/01-specification/output/a-spec.md"
         )
         self.assertIsNotNone(match)
         assert match is not None
-        self.assertEqual(match.groups(), ("01", "a-spec.md"))
+        self.assertEqual(match.groups(), ("process-plan", "01", "a-spec.md"))
 
     def test_name_re_enforces_kebab_slug_and_suffix(self) -> None:
         rows = {

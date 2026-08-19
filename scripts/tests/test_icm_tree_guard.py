@@ -113,9 +113,10 @@ class IcmTreeGuardTests(TempDirCase):
         self.assertEqual(err, "")
 
     def test_gate_output_naming_stays_silent(self) -> None:
-        # gate_output_naming is guarded by its path shape (OUTPUT_RE)
-        # rather than by is_icm_project, so the silence to assert is a
-        # write that matches nothing under ICM/*/stages/*/output/.
+        # gate_output_naming now guards on is_icm_project like every
+        # other gate (issue #16); the stronger case - a path that WOULD
+        # match OUTPUT_RE with no ICM/ tree - lives in
+        # test_gate_output_naming.GateOutputNamingNoIcmTests.
         _rc, out, _err = call_gate_main(
             gate_output_naming,
             {

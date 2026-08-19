@@ -84,6 +84,60 @@ class GateOutputNamingTests(TempDirCase):
         _rc, out, _err = call_gate_main(gate_output_naming, event)
         self.assertEqual(out.strip(), "")
 
+    def test_silent_in_workspaces_without_output_artifacts(self) -> None:
+        # `express-change`'s stage contracts declare no `output/`
+        # artifacts (issue #16), so the gate has no opinion there -
+        # neither on a `-spec.md` name nor on any other.
+        for name in ("my-feature-spec.md", "my-feature-change.md"):
+            with self.subTest(name=name):
+                path = (
+                    self.root
+                    / "ICM"
+                    / "express-change"
+                    / "stages"
+                    / "01-change"
+                    / "output"
+                    / name
+                )
+                rc, out, _err = call_gate_main(
+                    gate_output_naming,
+                    {
+                        "cwd": str(self.root),
+                        "tool_input": {"file_path": str(path)},
+                    },
+                )
+                self.assertEqual(rc, 0)
+                self.assertEqual(out.strip(), "")
+
+
+class GateOutputNamingNoIcmTests(TempDirCase):
+    """The gate must no-op entirely when there is no `ICM/` tree."""
+
+    scaffold_icm = False
+
+    def test_silent_without_icm_directory(self) -> None:
+        # The path would match OUTPUT_RE, but the project was never
+        # scaffolded by `/icm:init` (issue #16): every gate no-ops
+        # without the `ICM/` marker, and this one is no exception.
+        path = (
+            self.root
+            / "ICM"
+            / "process-plan"
+            / "stages"
+            / "01-specification"
+            / "output"
+            / "notes.md"
+        )
+        rc, out, _err = call_gate_main(
+            gate_output_naming,
+            {
+                "cwd": str(self.root),
+                "tool_input": {"file_path": str(path)},
+            },
+        )
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.strip(), "")
+
 
 if __name__ == "__main__":
     unittest.main()
