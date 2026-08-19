@@ -71,6 +71,33 @@ class ReadEventTests(unittest.TestCase):
             self.assertEqual(_common.read_event(), {})
 
 
+class ToolInputTests(unittest.TestCase):
+    def test_returns_the_dict_when_present(self) -> None:
+        event = {"tool_input": {"file_path": "/x/y.md"}}
+        self.assertEqual(
+            _common.tool_input(event), {"file_path": "/x/y.md"}
+        )
+
+    def test_absent_key_degrades_to_empty(self) -> None:
+        self.assertEqual(_common.tool_input({}), {})
+
+    def test_null_degrades_to_empty(self) -> None:
+        # `event.get("tool_input", {})` only defaults when the key is
+        # *absent* (issue #15): a present-but-non-dict value sailed past
+        # and raised `AttributeError` on the chained `.get`.
+        self.assertEqual(_common.tool_input({"tool_input": None}), {})
+
+    def test_string_degrades_to_empty(self) -> None:
+        self.assertEqual(
+            _common.tool_input({"tool_input": "file_path"}), {}
+        )
+
+    def test_list_degrades_to_empty(self) -> None:
+        self.assertEqual(
+            _common.tool_input({"tool_input": ["/x/y.md"]}), {}
+        )
+
+
 class ProjectDirTests(unittest.TestCase):
     def test_resolves_cwd_from_the_event(self) -> None:
         self.assertEqual(
@@ -79,6 +106,27 @@ class ProjectDirTests(unittest.TestCase):
 
     def test_missing_cwd_falls_back_to_dot(self) -> None:
         self.assertEqual(_common.project_dir({}), Path(".").resolve())
+
+    def test_falsy_cwd_falls_back_to_dot(self) -> None:
+        self.assertEqual(
+            _common.project_dir({"cwd": ""}), Path(".").resolve()
+        )
+        self.assertEqual(
+            _common.project_dir({"cwd": None}), Path(".").resolve()
+        )
+
+    def test_non_string_truthy_cwd_never_raises(self) -> None:
+        # `or "."` only guards a *falsy* cwd (issue #15): a truthy
+        # non-string (int, True, list, dict) reached `Path()` unguarded
+        # and raised `TypeError` out of every gate - notably crashing
+        # `gate_implement` *open*. The `str()` coercion stringifies the
+        # value into a path that resolves somewhere harmless instead.
+        for cwd in (42, True, ["a"], {"a": 1}):
+            with self.subTest(cwd=cwd):
+                self.assertEqual(
+                    _common.project_dir({"cwd": cwd}),
+                    Path(str(cwd)).resolve(),
+                )
 
 
 class IsIcmProjectTests(TempDirCase):
@@ -105,6 +153,21 @@ class RelativePosixTests(TempDirCase):
     def test_outside_the_root_is_none(self) -> None:
         outside = self.root.parent / "elsewhere.md"
         self.assertIsNone(_common.relative_posix(str(outside), self.root))
+
+    def test_a_relative_path_anchors_on_root_not_process_cwd(self) -> None:
+        # `Path(file_path).resolve()` anchored a relative path on the
+        # process's actual cwd, contradicting the docstring (issue #15) -
+        # and the one direction that could fail in was a silent ALLOW.
+        # `Path(root, file_path)` resolves it against `root` instead.
+        self.assertEqual(
+            _common.relative_posix("specs/commands/find.md", self.root),
+            "specs/commands/find.md",
+        )
+
+    def test_a_relative_path_escaping_root_is_none(self) -> None:
+        self.assertIsNone(
+            _common.relative_posix("../elsewhere.md", self.root)
+        )
 
 
 class FrontmatterLinesTests(unittest.TestCase):

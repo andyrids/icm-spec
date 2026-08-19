@@ -23,6 +23,7 @@ from _common import (
     project_dir,
     read_event,
     relative_posix,
+    tool_input,
 )
 
 # OUTPUT_RE requires an `ICM/*/stages/*/output/` path, which is a strictly
@@ -34,7 +35,7 @@ NAME_RE = re.compile(r"^([a-z0-9]+(?:-[a-z0-9]+)*)-(spec|code|test|docs)\.md$")
 def main() -> int:
     """Main entry point for the gate script."""
     event = read_event()
-    file_path = str(event.get("tool_input", {}).get("file_path", ""))
+    file_path = str(tool_input(event).get("file_path", ""))
     if not file_path:
         return 0
     rel = relative_posix(file_path, project_dir(event))

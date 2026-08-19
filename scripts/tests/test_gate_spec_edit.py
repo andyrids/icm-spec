@@ -40,6 +40,20 @@ class GateSpecEditTests(TempDirCase):
         self.assertEqual(rc, 0)
         self.assertEqual(out.strip(), "")
 
+    def test_a_malformed_tool_input_degrades_to_silence(self) -> None:
+        # `read_event` only guards the top-level event (issue #15): a
+        # present-but-non-dict `tool_input` crashed the gate with an
+        # `AttributeError` on the chained `.get`. It must degrade to
+        # exit 0 with no verdict instead.
+        for tool_input in (None, "file_path", ["/x/y.md"]):
+            with self.subTest(tool_input=tool_input):
+                rc, out, _err = call_gate_main(
+                    gate_spec_edit,
+                    {"cwd": str(self.root), "tool_input": tool_input},
+                )
+                self.assertEqual(rc, 0)
+                self.assertEqual(out.strip(), "")
+
     def test_silent_for_examples_specs(self) -> None:
         # Only the top-level tree declares desired state; a nested
         # `specs/` directory is somebody else's example.

@@ -122,6 +122,27 @@ class GateSpecFrontmatterTests(TempDirCase):
         self._write("specs/README.md", "# Specifications")
         self.assertEqual(self._silence("specs/README.md"), "")
 
+    def test_a_malformed_tool_input_degrades_to_silence(self) -> None:
+        # `read_event` only guards the top-level event (issue #15): a
+        # present-but-non-dict `tool_input` crashed the gate with an
+        # `AttributeError` on the chained `.get` - this call site was the
+        # one the original issue missed. It must degrade to exit 0 with
+        # no verdict instead - and the gate must stay standing, so the
+        # next well-formed event still gets its verdict.
+        for tool_input in (None, "file_path", ["/x/y.md"]):
+            with self.subTest(tool_input=tool_input):
+                rc, out, _err = call_gate_main(
+                    gate_spec_frontmatter,
+                    {"cwd": str(self.root), "tool_input": tool_input},
+                )
+                self.assertEqual(rc, 0)
+                self.assertEqual(out.strip(), "")
+        self._write("specs/commands/find.md", "# Command: acme find")
+        self.assertIn(
+            "no YAML frontmatter block",
+            self._context("specs/commands/find.md"),
+        )
+
     def test_a_non_utf8_spec_degrades_to_no_verdict(self) -> None:
         # `UnicodeDecodeError` is a `ValueError` that `except OSError`
         # never caught (issue #8): an undecodable spec must degrade to

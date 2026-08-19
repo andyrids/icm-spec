@@ -25,13 +25,14 @@ from _common import (
     project_dir,
     read_event,
     relative_posix,
+    tool_input,
 )
 
 
 def main() -> int:
     """Main entry point for the gate."""
     event = read_event()
-    file_path = str(event.get("tool_input", {}).get("file_path", ""))
+    file_path = str(tool_input(event).get("file_path", ""))
     if not file_path:
         return 0
     root = project_dir(event)

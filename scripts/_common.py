@@ -102,9 +102,35 @@ def read_event() -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def tool_input(event: dict[str, Any]) -> dict[str, Any]:
+    """Get the event's `tool_input` mapping, guarded against non-dict values.
+
+    NOTE: `read_event` only guarantees the *top-level* event is a dict
+    (issue #15): a present-but-non-dict `tool_input` (null, a string, a
+    list) sailed past every `event.get("tool_input", {})` whose `{}`
+    default fires only when the key is absent, and crashed the gate on the
+    chained `.get`. Anything unexpected degrades to `{}` instead.
+
+    Args:
+        event: The parsed hook event.
+
+    Returns:
+        The `tool_input` dict, or an empty dict when absent or malformed.
+    """
+    value = event.get("tool_input")
+    return value if isinstance(value, dict) else {}
+
+
 def project_dir(event: dict[str, Any]) -> Path:
-    """Get the current working directory."""
-    return Path(event.get("cwd") or ".").resolve()
+    """Get the current working directory.
+
+    NOTE: `str()` before `Path()` (issue #15): `or "."` guards only a
+    falsy `cwd`, so a non-string truthy value (int, True, list, dict)
+    reached `Path()` and raised `TypeError` out of every gate. A malformed
+    `cwd` now stringifies into a path that resolves somewhere harmless
+    instead of crashing the hook.
+    """
+    return Path(str(event.get("cwd") or ".")).resolve()
 
 
 def is_icm_project(root: Path) -> bool:
@@ -132,7 +158,13 @@ def relative_posix(file_path: str, root: Path) -> str | None:
         the root.
     """
     try:
-        rel = Path(file_path).resolve().relative_to(root)
+        # `Path(root, file_path)` anchors a *relative* `file_path` on
+        # `root` as the docstring promises (issue #15) - bare
+        # `Path(file_path).resolve()` anchored it on the process's actual
+        # cwd, and the one direction that could fail in was a silent ALLOW.
+        # An absolute `file_path` discards `root`, so the common case is
+        # unchanged.
+        rel = Path(root, file_path).resolve().relative_to(root)
     except (ValueError, OSError):
         return None
     return str(PurePosixPath(rel))

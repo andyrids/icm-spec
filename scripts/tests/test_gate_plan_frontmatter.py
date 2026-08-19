@@ -136,6 +136,23 @@ class GatePlanFrontmatterTests(TempDirCase):
         write_plan(self.root, "bogus", status="bogus")
         self.assertIn("bogus", self._context("bogus"))
 
+    def test_a_malformed_tool_input_degrades_to_silence(self) -> None:
+        # `read_event` only guards the top-level event (issue #15): a
+        # present-but-non-dict `tool_input` crashed the gate with an
+        # `AttributeError` on the chained `.get`. It must degrade to
+        # exit 0 with no verdict instead - and the gate must stay
+        # standing, so the next well-formed event still gets its verdict.
+        for tool_input in (None, "file_path", ["/x/y.md"]):
+            with self.subTest(tool_input=tool_input):
+                rc, out, _err = call_gate_main(
+                    gate_plan_frontmatter,
+                    {"cwd": str(self.root), "tool_input": tool_input},
+                )
+                self.assertEqual(rc, 0)
+                self.assertEqual(out.strip(), "")
+        write_plan(self.root, "bogus", status="bogus")
+        self.assertIn("bogus", self._context("bogus"))
+
     def test_ignores_plans_readme(self) -> None:
         (self.root / "plans").mkdir(exist_ok=True)
         (self.root / "plans" / "README.md").write_text(
