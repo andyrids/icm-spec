@@ -15,6 +15,7 @@ from .support import TempDirCase, call_gate_main, specific_output
 
 class GateOutputNamingTests(TempDirCase):
     def setUp(self) -> None:
+        """Set up the stage 01 output directory."""
         super().setUp()
         self.stage01 = (
             self.root
@@ -32,6 +33,8 @@ class GateOutputNamingTests(TempDirCase):
         }
 
     def test_denies_a_stray_output_name(self) -> None:
+        """Check that the gate denies a stray output name in stage 01."""
+
         _rc, out, _err = call_gate_main(
             gate_output_naming, self._event("notes.md")
         )
@@ -40,9 +43,8 @@ class GateOutputNamingTests(TempDirCase):
         )
 
     def test_denies_the_wrong_stage_suffix(self) -> None:
-        # The slug correlates a run's artifacts across all four stages,
-        # so `-code` in stage 01 breaks the handoff chain even though it
-        # is a valid suffix somewhere.
+        """Check an incorrect stage 01 output name is denied."""
+
         _rc, out, _err = call_gate_main(
             gate_output_naming, self._event("my-feature-code.md")
         )
@@ -51,22 +53,24 @@ class GateOutputNamingTests(TempDirCase):
         )
 
     def test_passes_slug_spec_in_stage_01(self) -> None:
+        """Check a correct stage 01 output name is allowed."""
+
         _rc, out, _err = call_gate_main(
             gate_output_naming, self._event("my-feature-spec.md")
         )
         self.assertEqual(out.strip(), "")
 
     def test_passes_gitkeep(self) -> None:
+        """Check that the gate passes a `.gitkeep` file in stage 01."""
+
         _rc, out, _err = call_gate_main(
             gate_output_naming, self._event(".gitkeep")
         )
         self.assertEqual(out.strip(), "")
 
     def test_a_malformed_tool_input_degrades_to_silence(self) -> None:
-        # `read_event` only guards the top-level event (issue #15): a
-        # present-but-non-dict `tool_input` crashed the gate with an
-        # `AttributeError` on the chained `.get`. It must degrade to
-        # exit 0 with no verdict instead.
+        """Check that a malformed `tool_input` does not crash the gate."""
+
         for tool_input in (None, "file_path", ["/x/y.md"]):
             with self.subTest(tool_input=tool_input):
                 rc, out, _err = call_gate_main(
@@ -77,6 +81,8 @@ class GateOutputNamingTests(TempDirCase):
                 self.assertEqual(out.strip(), "")
 
     def test_silent_outside_output(self) -> None:
+        """Check that the gate is silent outside of `output/`."""
+
         event = {
             "cwd": str(self.root),
             "tool_input": {"file_path": str(self.root / "plans" / "x.md")},
@@ -85,9 +91,8 @@ class GateOutputNamingTests(TempDirCase):
         self.assertEqual(out.strip(), "")
 
     def test_silent_in_workspaces_without_output_artifacts(self) -> None:
-        # `express-change`'s stage contracts declare no `output/`
-        # artifacts (issue #16), so the gate has no opinion there -
-        # neither on a `-spec.md` name nor on any other.
+        """Check the gate is silent in workspaces without artifacts."""
+
         for name in ("my-feature-spec.md", "my-feature-change.md"):
             with self.subTest(name=name):
                 path = (
@@ -116,9 +121,8 @@ class GateOutputNamingNoIcmTests(TempDirCase):
     scaffold_icm = False
 
     def test_silent_without_icm_directory(self) -> None:
-        # The path would match OUTPUT_RE, but the project was never
-        # scaffolded by `/icm:init` (issue #16): every gate no-ops
-        # without the `ICM/` marker, and this one is no exception.
+        """Check that the gate is silent without a `ICM/` directory."""
+
         path = (
             self.root
             / "ICM"

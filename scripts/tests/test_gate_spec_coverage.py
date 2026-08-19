@@ -26,6 +26,8 @@ class GateSpecCoverageFlowTests(TempDirCase):
     scaffold_git = True
 
     def test_six_step_flow(self) -> None:
+        """Test the six-step flow of the spec-coverage gate."""
+
         root = self.root
         (root / "specs" / "commands").mkdir(parents=True)
         (root / "specs" / "README.md").write_text(
@@ -48,10 +50,9 @@ class GateSpecCoverageFlowTests(TempDirCase):
             )
             self.assertEqual(rc, 0)
 
-        # The carve-out: a plan that writes a spec without changing
-        # behaviour correctly carries `specs: []`, so reading `specs:`
-        # alone would block the one case plans/README.md calls correct
-        # and common.
+        # A plan that writes a spec without changing behaviour correctly
+        # carries `specs: []`, so reading `specs:` alone would block the one
+        # case plans/README.md calls correct and common.
         with self.subTest("authors: alone covers a spec-authoring plan"):
             write_plan(
                 root,
@@ -84,11 +85,8 @@ class GateSpecCoverageFlowTests(TempDirCase):
             self.assertEqual(err, "")
 
     def test_a_quoted_specs_entry_opens_the_gate(self) -> None:
-        # Issue #9's user-visible symptom, end to end: the parser kept the
-        # quote characters, so a plan written in ordinary YAML read as
-        # owning no spec and the Stop blocked with "New spec(s) with no
-        # owning plan" - naming a spec the plan demonstrably owned, and
-        # advising the author to do the thing already done.
+        """Check a plan with a quoted spec path does not block the gate."""
+
         root = self.root
         (root / "specs" / "commands").mkdir(parents=True)
         (root / "specs" / "commands" / "quoted.md").write_text(

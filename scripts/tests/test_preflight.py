@@ -21,6 +21,12 @@ from .support import (
 
 class PreflightTests(TempDirCase):
     def test_names_the_session_start_event(self) -> None:
+        """Check positive signal of the SessionStart event name in the output.
+
+        NOTE: Ensures that the hook runtime is not broken by looking for the
+        positive signal of the SessionStart event name in the output.
+        """
+
         _rc, out, _err = call_gate_main(
             preflight, {"cwd": str(self.root), "source": "startup"}
         )
@@ -29,8 +35,8 @@ class PreflightTests(TempDirCase):
         )
 
     def test_announces_the_armed_gates_in_an_icm_tree(self) -> None:
-        # The line is the positive signal; its absence in a scaffolded
-        # repository is the tell that the hook runtime is broken.
+        """Check positive signal of the "gates armed" message in output."""
+
         rc, out, _err = call_gate_main(
             preflight, {"cwd": str(self.root), "source": "startup"}
         )
@@ -40,12 +46,8 @@ class PreflightTests(TempDirCase):
         )
 
     def test_a_non_utf8_manifest_still_emits_the_banner(self) -> None:
-        # `UnicodeDecodeError` is raised by `read_text`, not `json.loads`,
-        # so neither guard caught it (issue #8) - and the banner is the
-        # positive signal, so it must degrade to "unknown" rather than
-        # vanish and read as a broken hook runtime. `SCRIPTS` is patched
-        # into the tempdir so `plugin_version` resolves the fixture
-        # manifest instead of the repository's own.
+        """Check that a non-UTF-8 manifest still emits the banner."""
+
         write_bytes(
             self.root,
             ".claude-plugin/plugin.json",

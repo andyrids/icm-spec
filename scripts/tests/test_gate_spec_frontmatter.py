@@ -47,12 +47,16 @@ class GateSpecFrontmatterTests(TempDirCase):
         return out.strip()
 
     def test_flags_a_spec_with_no_frontmatter_block(self) -> None:
+        """Check a spec with no frontmatter block is flagged."""
+
         self._write("specs/commands/find.md", "# Command: acme find")
         context = self._context("specs/commands/find.md")
         self.assertIn("no YAML frontmatter block", context)
         self.assertIn("specs/README.md", context)
 
     def test_flags_a_missing_layer3_hierarchy_key(self) -> None:
+        """Check a spec missing the Layer 3 hierarchy key is flagged."""
+
         self._write(
             "specs/commands/find.md",
             "---\ncontext-hierarchy-role: Reference material\n"
@@ -64,8 +68,8 @@ class GateSpecFrontmatterTests(TempDirCase):
         )
 
     def test_flags_a_wrong_immutable_value(self) -> None:
-        # `immutable: true` is the factory configuration's posture, not a
-        # spec's - the pipeline exists to amend specs.
+        """Check a spec with the wrong `immutable` value is flagged."""
+
         self._write(
             "specs/commands/find.md", VALID.replace("false", "true")
         )
@@ -75,6 +79,8 @@ class GateSpecFrontmatterTests(TempDirCase):
         )
 
     def test_flags_a_layer_4_role_pasted_onto_a_spec(self) -> None:
+        """Check a spec with a Layer 4 role pasted onto it is flagged."""
+
         self._write(
             "specs/commands/find.md",
             VALID.replace("Reference material", "Working artifact"),
@@ -89,8 +95,8 @@ class GateSpecFrontmatterTests(TempDirCase):
         self.assertEqual(self._silence("specs/commands/find.md"), "")
 
     def test_passes_a_valid_spec_carrying_no_tags(self) -> None:
-        # `tags` is shown in the template but deliberately unchecked: a gate
-        # demanding keywords would only ever be answered with placeholders.
+        """Check a spec with no `tags` key is not flagged."""
+
         lines = [
             line for line in VALID.splitlines() if not line.startswith("tags:")
         ]
@@ -98,18 +104,22 @@ class GateSpecFrontmatterTests(TempDirCase):
         self.assertEqual(self._silence("specs/commands/find.md"), "")
 
     def test_judges_a_flat_principles_file(self) -> None:
-        # Unlike plans, specs are not depth-constrained: `principles.md`
-        # sits at the root of the tree and is in scope all the same.
+        """Check a flat principles file is judged correctly."""
+
         self._write("specs/principles.md", "# Principles")
         self.assertIn(
             "no YAML frontmatter block", self._context("specs/principles.md")
         )
 
     def test_passes_a_valid_flat_principles_file(self) -> None:
+        """Check a flat principles file with valid frontmatter passess."""
+
         self._write("specs/principles.md", VALID)
         self.assertEqual(self._silence("specs/principles.md"), "")
 
     def test_judges_a_deeply_nested_spec(self) -> None:
+        """Check a deeply nested spec is judged correctly."""
+
         self._write("specs/mcp/tools/inspect.md", "# Tool: inspect")
         self.assertIn(
             "no YAML frontmatter block",
@@ -117,18 +127,14 @@ class GateSpecFrontmatterTests(TempDirCase):
         )
 
     def test_ignores_specs_readme(self) -> None:
-        # Layer 3 reference material at `immutable: true` with a budget -
-        # a different schema, held by its own contract.
+        """Check a specs README is ignored."""
+
         self._write("specs/README.md", "# Specifications")
         self.assertEqual(self._silence("specs/README.md"), "")
 
     def test_a_malformed_tool_input_degrades_to_silence(self) -> None:
-        # `read_event` only guards the top-level event (issue #15): a
-        # present-but-non-dict `tool_input` crashed the gate with an
-        # `AttributeError` on the chained `.get` - this call site was the
-        # one the original issue missed. It must degrade to exit 0 with
-        # no verdict instead - and the gate must stay standing, so the
-        # next well-formed event still gets its verdict.
+        """Check a malformed `tool_input` degrades to silence."""
+
         for tool_input in (None, "file_path", ["/x/y.md"]):
             with self.subTest(tool_input=tool_input):
                 rc, out, _err = call_gate_main(
@@ -144,10 +150,8 @@ class GateSpecFrontmatterTests(TempDirCase):
         )
 
     def test_a_non_utf8_spec_degrades_to_no_verdict(self) -> None:
-        # `UnicodeDecodeError` is a `ValueError` that `except OSError`
-        # never caught (issue #8): an undecodable spec must degrade to
-        # silence - and the gate itself must stay standing, so the next
-        # event against a readable spec still gets its verdict.
+        """Check a non-UTF-8 spec degrades to no verdict."""
+
         write_bytes(
             self.root,
             "specs/commands/binary.md",
@@ -161,13 +165,8 @@ class GateSpecFrontmatterTests(TempDirCase):
         )
 
     def test_an_embedded_nul_path_degrades_to_no_verdict(self) -> None:
-        # The residue of issue #8 (issue #17): a NUL in `file_path`
-        # passes `resolve()` and `relative_to()` and only raises inside
-        # `read_text`, as a `ValueError` that is NOT a
-        # `UnicodeDecodeError` - so the guard narrowed to
-        # `(OSError, UnicodeDecodeError)` still crashed the hook. It must
-        # degrade to silence - and the gate itself must stay standing, so
-        # the next event against a readable spec still gets its verdict.
+        """Check a spec with an embedded NUL in its path degrades."""
+
         self.assertEqual(
             self._silence("specs/commands/bad\x00spec.md"), ""
         )

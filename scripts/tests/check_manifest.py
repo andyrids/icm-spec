@@ -4,21 +4,15 @@
 # ///
 """Check that the plugin version agrees everywhere it is stated.
 
-Claude Code resolves a plugin's version from `plugin.json` first, then the
-marketplace entry, then the source commit SHA - and an update ships only
-when the resolved string changes. Declaring the version in the first two
-places at once is the documented failure mode: `plugin.json` wins silently,
-so a stale manifest can mask a marketplace bump and the release reaches
-nobody. This repository's arrangement is therefore one authoritative field,
-`plugin.json`, with the one human-facing statement - the CHANGELOG top
-release heading - required to agree with it. The README deliberately
-restates no version: the CHANGELOG and the GitHub release carry it, so
-there is nothing there to drift and nothing here to check.
+NOTE: Claude Code resolves the plugin version from `plugin.json` first,
+then the marketplace entry, then the source commit SHA. There is one
+authoritative field in `plugin.json`, which requires parity with the
+CHANGELOG top release heading.
 
 Three assertions:
 
-1. `plugin.json` declares a `version`
-2. The marketplace entry for `icm` does not
+1. `plugin.json` declares a `version`.
+2. The marketplace entry for `icm` does not declare a `version`.
 3. The CHANGELOG topmost release heading matches unless `[unreleased]`.
 
 Run: uv run --no-project --script scripts/tests/check_manifest.py
@@ -71,7 +65,8 @@ def main() -> int:
         bad.append(
             (
                 ".claude-plugin/marketplace.json",
-                f"entry for icm declares version {entry['version']} - plugin.json masks it silently; remove it",
+                f"entry for icm declares version {entry['version']} "
+                "- plugin.json masks it silently; remove it",
             )
         )
 
@@ -83,7 +78,8 @@ def main() -> int:
         bad.append(
             (
                 f"CHANGELOG.md:{line_of(changelog, heading.start())}",
-                f"top release heading is [{heading.group(1)}], plugin.json says {version}",
+                f"top release heading is [{heading.group(1)}], "
+                f"plugin.json says {version}",
             )
         )
 

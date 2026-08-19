@@ -1,17 +1,6 @@
 """Check that every static path a scaffolded ICM tree cites in prose resolves.
 
-This is the test that would have caught the three defects `/icm:init` shipped
-with: a workspace directory the skills addressed but the templates did not
-create, a Layer 0 template the mapping table promised and no file backed, and
-two toolchain references a stage contract named that were never written. Each
-was a backtick-quoted path in prose that pointed at nothing, and nothing was
-looking.
-
-With no argument it simulates a scaffold from `skills/init/templates/` into a
-temporary directory and checks that - so it runs in CI with no fixture. Given
-a path it checks that tree instead, which is how to audit a real project.
-
-Fenced blocks are stripped before scanning: tree diagrams and template
+NOTE: Fenced blocks are stripped before scanning: tree diagrams and template
 examples name paths illustratively rather than referentially. A reference
 resolves if it exists relative to the tree root or to the citing file.
 
@@ -36,16 +25,13 @@ TEMPLATES = (
 
 FENCE = re.compile(r"^```.*?^```", re.S | re.M)
 TOKEN = re.compile(r"`([^`\n]+)`")
-# A token holding any of these is a pattern, a placeholder or a URL, not a path.
+ 
 SKIP_CHARS = ("<", ">", "*", "[", "$", " ")
+"""Denotes a pattern, a placeholder or a URL (not a path)."""
 
-# Every table in the naming standard is an illustrative example - the file
-# teaches filename patterns, so its `example` columns name files on purpose.
 EXCLUDE_FILES = {"ICM/_config/reference-standard-naming.md"}
+"""Exclude files that cite paths illustratively rather than referentially."""
 
-# Paths deliberately absent from a fresh scaffold. An entry here is a claim
-# that the citation is correct and the file's absence is by design - so each
-# carries the reason, and an unexplained addition is the smell.
 NOT_SCAFFOLDED = {
     "specs/principles.md": (
         "promoted into on the first project-wide principle - scaffolding it "
@@ -53,6 +39,7 @@ NOT_SCAFFOLDED = {
     ),
     "README.md": "the project's own README, which ICM neither writes nor owns",
 }
+"""Paths deliberately absent from a fresh scaffold."""
 
 
 def scaffold(dest: Path) -> None:

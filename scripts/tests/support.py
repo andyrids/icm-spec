@@ -1,10 +1,5 @@
 """Shared fixtures and drivers for the ICM gate test suite.
 
-Three layers use this module: pure-function tests need nothing here,
-in-process tests drive a gate's `main()` through `call_gate_main` inside
-a `TempDirCase` tempdir, and the process-contract tests spawn a real
-interpreter through `run_gate_subprocess`.
-
 Run: python -m unittest discover -s scripts/tests -t scripts
 
 License:
@@ -25,13 +20,6 @@ from unittest import mock
 
 SCRIPTS = Path(__file__).resolve().parent.parent
 
-# Full git isolation for every fixture, in-process gate call and spawned
-# script. A contributor's global config is a fixture ingredient nobody
-# ordered: `status.renames=false` would silently downgrade every R row to
-# D+A and test nothing, `core.autocrlf` rewrites the bytes under test,
-# `commit.gpgsign` can hang a commit on a missing key. `GIT_CONFIG_GLOBAL`
-# pointed at the null device suppresses global and system config alike;
-# the `GIT_CONFIG_*` triplets re-add only what the fixtures rely on.
 _GIT_ISOLATION = {
     "GIT_CONFIG_GLOBAL": os.devnull,
     "GIT_CONFIG_SYSTEM": os.devnull,
@@ -49,6 +37,10 @@ _GIT_ISOLATION = {
     "GIT_CONFIG_KEY_3": "status.renames",
     "GIT_CONFIG_VALUE_3": "true",
 }
+"""Git isolation for fixtures, in-process gate calls & spawned scripts.
+
+NOTE: Prevents a global config from polluting the test suite.
+"""
 
 PLAN_TEMPLATE = """---
 context-hierarchy: Layer 4

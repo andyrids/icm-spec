@@ -43,16 +43,22 @@ class GatePlanFrontmatterTests(TempDirCase):
         )
 
     def test_flags_an_invalid_status(self) -> None:
+        """Check that the gate flags a plan with an invalid status."""
+
         write_plan(self.root, "bogus", status="bogus")
         self.assertIn("bogus", self._context("bogus"))
 
     def test_flags_an_unresolvable_specs_entry(self) -> None:
+        """Check the gate flags a plan with an invalid specs entry."""
+
         write_plan(
             self.root, "dangling", specs="\n  - specs/commands/missing.md"
         )
         self.assertIn("missing.md", self._context("dangling"))
 
     def test_flags_an_unresolvable_authors_entry(self) -> None:
+        """Check the gate flags a plan with an invalid authors entry."""
+
         write_plan(
             self.root,
             "dangling-author",
@@ -61,9 +67,8 @@ class GatePlanFrontmatterTests(TempDirCase):
         self.assertIn("ghost.md", self._context("dangling-author"))
 
     def test_flags_a_spec_claimed_by_both_fields(self) -> None:
-        # A spec whose code the plan brings into conformance belongs in
-        # specs: alone - claiming both blurs the distinction the coverage
-        # gate relies on.
+        """Check the gate flags plans with a spec in `specs:` & `authors:`."""
+
         self._real_spec()
         write_plan(
             self.root,
@@ -74,6 +79,8 @@ class GatePlanFrontmatterTests(TempDirCase):
         self.assertIn("both specs: and authors:", self._context("both"))
 
     def test_flags_a_missing_layer4_hierarchy_key(self) -> None:
+        """Check the gate flags a plan with no `context-hierarchy:` key."""
+
         (self.root / "plans").mkdir(exist_ok=True)
         (self.root / "plans" / "flat.md").write_text(
             "---\nstatus: planned\nspecs: []\nauthors: []\npr:\n---\n"
@@ -85,6 +92,8 @@ class GatePlanFrontmatterTests(TempDirCase):
         )
 
     def test_passes_a_valid_plan(self) -> None:
+        """Check the gate passes a plan with a valid status & specs."""
+
         self._real_spec()
         write_plan(self.root, "valid", specs="\n  - specs/commands/real.md")
         _rc, out, _err = call_gate_main(
@@ -93,8 +102,8 @@ class GatePlanFrontmatterTests(TempDirCase):
         self.assertEqual(out.strip(), "")
 
     def test_passes_a_spec_authoring_plan(self) -> None:
-        # `authors:` with `specs: []` is the correct shape for a plan
-        # that writes a spec without changing behaviour.
+        """Check the gate passes a plan with a valid status & authors."""
+
         self._real_spec()
         write_plan(
             self.root, "authoring", authors="\n  - specs/commands/real.md"
@@ -105,11 +114,10 @@ class GatePlanFrontmatterTests(TempDirCase):
         self.assertEqual(out.strip(), "")
 
     def test_a_non_utf8_plan_degrades_to_no_verdict(self) -> None:
-        # `UnicodeDecodeError` is a `ValueError` that `except OSError`
-        # never caught (issue #8): an undecodable plan crashed a
-        # PostToolUse hook that cannot block anyway. It must degrade to
-        # silence - and the gate itself must stay standing, so the next
-        # event against a readable plan still gets its verdict.
+        """Check that a non-UTF-8 plan does not crash the gate.
+        
+        NOTE: This test uses a non-UTF-8 encoded plan."""
+
         write_bytes(
             self.root, "plans/binary.md", b"---\nstatus: caf\xe9\n---\n"
         )
@@ -121,13 +129,11 @@ class GatePlanFrontmatterTests(TempDirCase):
         self.assertIn("bogus", self._context("bogus"))
 
     def test_an_embedded_nul_path_degrades_to_no_verdict(self) -> None:
-        # The residue of issue #8 (issue #17): a NUL in `file_path`
-        # passes `resolve()` and `relative_to()` and only raises inside
-        # `read_text`, as a `ValueError` that is NOT a
-        # `UnicodeDecodeError` - so the guard narrowed to
-        # `(OSError, UnicodeDecodeError)` still crashed the hook. It must
-        # degrade to silence - and the gate itself must stay standing, so
-        # the next event against a readable plan still gets its verdict.
+        """Check a plan with an embedded NUL in its path does not crash.
+
+        NOTE: This test uses a plan with an embedded NUL in its path.
+        """
+
         rc, out, _err = call_gate_main(
             gate_plan_frontmatter, self._event("bad\x00plan")
         )
@@ -137,11 +143,8 @@ class GatePlanFrontmatterTests(TempDirCase):
         self.assertIn("bogus", self._context("bogus"))
 
     def test_a_malformed_tool_input_degrades_to_silence(self) -> None:
-        # `read_event` only guards the top-level event (issue #15): a
-        # present-but-non-dict `tool_input` crashed the gate with an
-        # `AttributeError` on the chained `.get`. It must degrade to
-        # exit 0 with no verdict instead - and the gate must stay
-        # standing, so the next well-formed event still gets its verdict.
+        """Check that a malformed `tool_input` does not crash the gate."""
+
         for tool_input in (None, "file_path", ["/x/y.md"]):
             with self.subTest(tool_input=tool_input):
                 rc, out, _err = call_gate_main(
@@ -154,6 +157,8 @@ class GatePlanFrontmatterTests(TempDirCase):
         self.assertIn("bogus", self._context("bogus"))
 
     def test_ignores_plans_readme(self) -> None:
+        """Check that the gate ignores a plans/README.md file."""
+
         (self.root / "plans").mkdir(exist_ok=True)
         (self.root / "plans" / "README.md").write_text(
             "# Plans", encoding="utf-8"

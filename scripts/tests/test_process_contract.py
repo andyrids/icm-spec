@@ -30,6 +30,8 @@ class ProcessContractTests(TempDirCase):
     scaffold_git = True  # the two Stop gates read `git status`
 
     def test_gate_implement(self) -> None:
+        """Check the gate_implement script is deployed and callable."""
+
         proc = run_gate_subprocess(
             "gate_implement.py",
             {"cwd": str(self.root), "prompt": "/icm:implement x"},
@@ -38,6 +40,8 @@ class ProcessContractTests(TempDirCase):
         self.assertIn("plan", proc.stderr)
 
     def test_gate_clarification(self) -> None:
+        """Check the gate_clarification script is deployed and callable."""
+
         outdir = (
             self.root
             / "ICM"
@@ -57,6 +61,8 @@ class ProcessContractTests(TempDirCase):
         self.assertIn("y?", proc.stderr)
 
     def test_gate_spec_edit(self) -> None:
+        """Check the gate_spec_edit script is deployed and callable."""
+
         proc = run_gate_subprocess(
             "gate_spec_edit.py",
             {
@@ -74,6 +80,8 @@ class ProcessContractTests(TempDirCase):
         )
 
     def test_gate_output_naming(self) -> None:
+        """Check the gate_output_naming script is deployed and callable."""
+
         stage01 = (
             self.root
             / "ICM"
@@ -95,6 +103,8 @@ class ProcessContractTests(TempDirCase):
         )
 
     def test_gate_plan_frontmatter(self) -> None:
+        """Check the gate_plan_frontmatter script is deployed and callable."""
+
         write_plan(self.root, "bogus", status="bogus")
         proc = run_gate_subprocess(
             "gate_plan_frontmatter.py",
@@ -111,6 +121,8 @@ class ProcessContractTests(TempDirCase):
         )
 
     def test_gate_spec_frontmatter(self) -> None:
+        """Check the gate_spec_frontmatter script is deployed and callable."""
+
         (self.root / "specs" / "commands").mkdir(parents=True)
         (self.root / "specs" / "commands" / "find.md").write_text(
             "# Command: acme find", encoding="utf-8"
@@ -133,6 +145,8 @@ class ProcessContractTests(TempDirCase):
         )
 
     def test_gate_spec_coverage(self) -> None:
+        """Check the gate_spec_coverage script is deployed and callable."""
+
         (self.root / "specs" / "commands").mkdir(parents=True)
         (self.root / "specs" / "commands" / "orphan.md").write_text(
             "# spec", encoding="utf-8"
@@ -145,6 +159,8 @@ class ProcessContractTests(TempDirCase):
         self.assertIn("orphan.md", proc.stderr)
 
     def test_gate_closeout(self) -> None:
+        """Check the gate_closeout script is deployed and callable."""
+
         write_plan(self.root, "closing", status="done", pr="")
         proc = run_gate_subprocess(
             "gate_closeout.py",
@@ -154,6 +170,8 @@ class ProcessContractTests(TempDirCase):
         self.assertIn("pr:", proc.stderr)
 
     def test_preflight(self) -> None:
+        """Check the preflight script is deployed and callable."""
+
         proc = run_gate_subprocess(
             "preflight.py", {"cwd": str(self.root), "source": "startup"}
         )
@@ -174,11 +192,8 @@ class StreamEncodingContractTests(TempDirCase):
     """
 
     def test_stdin_decodes_raw_utf8_despite_the_codepage(self) -> None:
-        # Feed raw UTF-8 non-ASCII bytes exactly as the hook host does
-        # (`ensure_ascii=False`, so the wire really carries them). Under the
-        # old text-mode `json.load`, cp1252 decodes them into mojibake
-        # without raising and the deny reason names a path that exists
-        # nowhere; `read_event` now reads `sys.stdin.buffer` as UTF-8.
+        """Check the gate_spec_edit script reads UTF-8 bytes from stdin."""
+
         file_path = self.root / "specs" / "commands" / "naïve-café.md"
         event = {
             "cwd": str(self.root),
@@ -198,9 +213,8 @@ class StreamEncodingContractTests(TempDirCase):
         )
 
     def test_stderr_carries_utf8_despite_the_codepage(self) -> None:
-        # An ASCII-pinned stderr made a non-ASCII deny message a
-        # `UnicodeEncodeError` (a traceback and the wrong exit code) before
-        # `_common` reconfigured the stream to UTF-8 at import time.
+        """Check the gate_clarification script writes UTF-8 bytes to stderr."""
+
         outdir = (
             self.root
             / "ICM"

@@ -48,6 +48,7 @@ class CheckBudgetsTests(TempDirCase):
         )
 
     def test_a_breached_budget_fails_and_is_named(self) -> None:
+        """A file that exceeds its budget should fail and be named."""
         (self.root / "over.md").write_text(
             BUDGETED.format(budget=10, body="word " * 200),
             encoding="utf-8",
@@ -62,8 +63,10 @@ class CheckBudgetsTests(TempDirCase):
         self.assertNotIn("fine.md", proc.stdout)
 
     def test_compliant_and_undeclared_files_pass(self) -> None:
-        # A file with no `maximum-context-tokens` line is unbudgeted by
-        # contract (specs), not over budget.
+        """A file that is within its budget should pass.
+        
+        NOTE: A file with no budget declaration should also pass.
+        """
         (self.root / "fine.md").write_text(
             BUDGETED.format(budget=500, body="short"), encoding="utf-8"
         )

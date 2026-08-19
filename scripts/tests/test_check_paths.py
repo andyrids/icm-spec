@@ -1,9 +1,9 @@
 """Companion tests for `check_paths.py`; the program is unchanged.
 
 NOTE: `check_paths.main()` is never called in-process - it reads
-`sys.argv[1]`, which collides with unittest's own argv. The functions
-are tested directly and the optional-path CLI contract is pinned with
-one real subprocess.
+`sys.argv[1]`, which collides with unittest argv. The functions are tested
+directly and the optional-path CLI contract is pinned with one real
+subprocess.
 
 Run: python -m unittest discover -s scripts/tests -t scripts
 
@@ -26,9 +26,11 @@ class ScaffoldTests(TempDirCase):
     scaffold_icm = False
 
     def test_scaffold_renames_gitignore(self) -> None:
-        # Only `gitignore` is renamed; everything else lands at its
-        # template path - mirroring the mapping table in
-        # skills/init/SKILL.md.
+        """Check scaffolded `gitignore` is renamed.
+
+        NOTE: Only `gitignore` is renamed; everything else lands at its
+        template path (mirrors the mapping table in skills/init/SKILL.md).
+        """
         dest = self.root / "scaffold"
         check_paths.scaffold(dest)
         self.assertTrue((dest / ".gitignore").is_file())
@@ -36,8 +38,11 @@ class ScaffoldTests(TempDirCase):
         self.assertTrue((dest / "AGENTS.md").is_file())
 
     def test_a_fresh_scaffold_has_no_unresolved_paths(self) -> None:
-        # The CI default: what `/icm:init` ships must cite only paths it
-        # also creates (or allowlists with a reason).
+        """Check that a fresh scaffold has no unresolved paths.
+
+        NOTE: The CI default is that what `/icm:init` ships must cite only
+        paths it also creates (or allowlists with a reason).
+        """
         dest = self.root / "scaffold"
         check_paths.scaffold(dest)
         self.assertEqual(check_paths.unresolved(dest), [])
@@ -47,6 +52,7 @@ class UnresolvedTests(TempDirCase):
     scaffold_icm = False
 
     def test_reports_a_citation_that_resolves_nowhere(self) -> None:
+        """Check that a citation that resolves nowhere is reported."""
         (self.root / "a.md").write_text(
             "See `missing.md` for details.\n", encoding="utf-8"
         )
@@ -55,8 +61,8 @@ class UnresolvedTests(TempDirCase):
         )
 
     def test_resolves_against_root_and_citing_file(self) -> None:
-        # A reference resolves if it exists relative to the tree root or
-        # to the citing file.
+        """Check citations resolve against the tree root & citing file."""
+
         docs = self.root / "docs"
         docs.mkdir()
         (self.root / "top.md").write_text("# top\n", encoding="utf-8")
@@ -67,8 +73,8 @@ class UnresolvedTests(TempDirCase):
         self.assertEqual(check_paths.unresolved(self.root), [])
 
     def test_fenced_blocks_and_patterns_are_skipped(self) -> None:
-        # Tree diagrams and template examples name paths illustratively
-        # rather than referentially; placeholder tokens are patterns.
+        """Check citations inside fenced blocks & patterns are skipped."""
+
         (self.root / "a.md").write_text(
             "```\n`inside-fence.md`\n```\n"
             "A `<placeholder>.md` and `specs/*.md` pattern.\n"
@@ -78,6 +84,7 @@ class UnresolvedTests(TempDirCase):
         self.assertEqual(check_paths.unresolved(self.root), [])
 
     def test_allowlisted_absences_are_by_design(self) -> None:
+        """Check that allowlisted absences are reported as by design."""
         (self.root / "a.md").write_text(
             "Promote into `specs/principles.md`.\n", encoding="utf-8"
         )
@@ -93,11 +100,13 @@ class ReportTests(TempDirCase):
         return rc, out.getvalue()
 
     def test_missing_tree_fails(self) -> None:
+        """Check that a missing tree fails with a message."""
         rc, out = self._report(self.root / "nowhere")
         self.assertEqual(rc, 1)
         self.assertIn("no such tree", out)
 
     def test_clean_tree_passes_and_names_the_allowlist(self) -> None:
+        """Check that a clean tree passes and the allowlist is named."""
         (self.root / "a.md").write_text("# a\n", encoding="utf-8")
         rc, out = self._report(self.root)
         self.assertEqual(rc, 0)
@@ -105,6 +114,7 @@ class ReportTests(TempDirCase):
         self.assertIn("by design", out)
 
     def test_bad_tree_fails_and_names_the_citation(self) -> None:
+        """Check that a bad tree fails and the citation is named."""
         (self.root / "a.md").write_text("`missing.md`\n", encoding="utf-8")
         rc, out = self._report(self.root)
         self.assertEqual(rc, 1)
@@ -116,6 +126,7 @@ class CliContractTests(TempDirCase):
     scaffold_icm = False
 
     def test_optional_path_argument_audits_that_tree(self) -> None:
+        """Check that the optional path argument audits that tree."""
         (self.root / "a.md").write_text("`missing.md`\n", encoding="utf-8")
         proc = subprocess.run(
             [

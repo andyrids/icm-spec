@@ -26,11 +26,14 @@ import re
 import sys
 from pathlib import Path
 
-import tiktoken
+import tiktoken # pyright: ignore[reportMissingImports]
+
 
 BUDGET = re.compile(r"^maximum-context-tokens:\s*(\d+)\s*$", re.M)
-# Warn before a file breaches, so the fix is a sentence rather than a rewrite.
+"""A regex to find the token budget in a file."""
+
 NEAR = 0.9
+"""A fraction of the token budget to warn at."""
 
 
 def main() -> int:

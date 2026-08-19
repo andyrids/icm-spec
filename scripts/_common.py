@@ -52,18 +52,9 @@ SLUG_SUFFIX_BY_STAGE = {
 }
 """Stage slug suffixes for the four Layer 4 stages."""
 
-# The event and message channels are byte contracts, not locale text
-# (issue #14). Hook events arrive as raw UTF-8 JSON, and under a mismatched
-# OS codepage Python's default text-mode stdin decodes them into mojibake
-# without raising - path resolution then silently fails and every gate
-# degrades to exit 0 with no real check. `read_event` therefore reads
-# `sys.stdin.buffer` and decodes UTF-8 by hand. Symmetrically, stderr deny
-# messages naming a non-ASCII path must survive the trip back, so stderr is
-# pinned to UTF-8 here at import time - every gate that writes stderr imports
-# this module first, which `emit()` (stdout-only) could never guarantee.
-# `backslashreplace` keeps an unencodable byte visible rather than fatal, and
-# the `hasattr` guard keeps a stream with no `reconfigure` (a replaced or
-# absent stderr) a no-op rather than a wedged session.
+# (issue #14): `backslashreplace` keeps an unencodable byte visible rather
+# than fatal and the `hasattr` guard keeps a stream with no `reconfigure` a
+# no-op rather than a wedged session.
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
 
@@ -158,12 +149,9 @@ def relative_posix(file_path: str, root: Path) -> str | None:
         the root.
     """
     try:
-        # `Path(root, file_path)` anchors a *relative* `file_path` on
-        # `root` as the docstring promises (issue #15) - bare
-        # `Path(file_path).resolve()` anchored it on the process's actual
-        # cwd, and the one direction that could fail in was a silent ALLOW.
-        # An absolute `file_path` discards `root`, so the common case is
-        # unchanged.
+        # `Path(root, file_path)` anchors a *relative* `file_path` on `root`
+        # as the docstring promises, but a leading `/` on `file_path` makes
+        # it absolute.
         rel = Path(root, file_path).resolve().relative_to(root)
     except (ValueError, OSError):
         return None
@@ -308,12 +296,8 @@ def parse_plan_frontmatter(text: str) -> dict[str, Any] | None:
             continue
         key, _, value = stripped.partition(":")
         key = key.strip()
-        # Unquoted at every site a value is read (issue #9): quoting a value
-        # is ordinary YAML, and a surviving quote character breaks every
-        # comparison downstream - a coverage key that matches no `git status`
-        # payload, a `status: "done"` off the enum. Here rather than in
-        # `plan_spec_paths`, because `gate_plan_frontmatter` iterates the
-        # parsed lists directly and must see the same bare values.
+        # Quoting a value is ordinary YAML, and a surviving quote character
+        # breaks every comparison downstream.
         value = _unquote(_strip_comment(value))
         if key in LIST_KEYS:
             if value.startswith("[") and value != "[]":
@@ -420,12 +404,9 @@ def git_pending_paths(root: Path, subdir: str) -> list[tuple[str, str]]:
         return []
     if proc.returncode != 0:
         return []
+
     # Porcelain paths are relative to the repository toplevel regardless of
-    # the subprocess's `cwd`, while every caller compares against paths
-    # relative to `root` (issue #13). Establish the toplevel->root prefix so
-    # each record can be rebased below; any failure here degrades to an
-    # empty prefix, keeping today's passthrough behaviour rather than
-    # introducing a new failure mode.
+    # the subprocess `cwd`.
     prefix = ""
     try:
         top = subprocess.run(
@@ -441,9 +422,8 @@ def git_pending_paths(root: Path, subdir: str) -> list[tuple[str, str]]:
         decoded = top.stdout.decode("utf-8", errors="surrogateescape")
         repo_top = Path(decoded.rstrip("\r\n")).resolve()
         try:
-            # `root` may legitimately not be a subpath of the decoded
-            # toplevel (differing symlink resolution, test fixtures); that
-            # is a degrade, never an uncaught ValueError out of a gate.
+            # `root` may not be a subpath of the decoded toplevel (differing
+            # symlink resolution, test fixtures); that is a degrade.
             relative = root.resolve().relative_to(repo_top)
         except ValueError:
             relative = None
@@ -452,14 +432,9 @@ def git_pending_paths(root: Path, subdir: str) -> list[tuple[str, str]]:
             # "." means `root` IS the toplevel: nothing to strip.
             if posix != ".":
                 prefix = posix
-    # Decoded by hand rather than via `text=True` or `encoding=`: both wrap
-    # stdout in a TextIOWrapper whose universal-newline translation would
-    # rewrite a `\r` inside a POSIX filename, and `text=True` also decodes in
-    # the locale codepage rather than git's UTF-8 (issue #6). Never `\n`
-    # splitting: `-z` terminates records with NUL because a newline is itself
-    # a legal filename byte. `surrogateescape` cannot raise, so the `except`
-    # tuple above stays the whole failure surface and a malformed byte
-    # degrades to a path that matches no plan, not a crashed gate.
+
+    # `text=True`|`encoding=` would wrap stdout in a `TextIOWrapper`, which
+    # would rewrite a `\r` inside a POSIX filename.
     records = proc.stdout.decode("utf-8", errors="surrogateescape").split("\0")
     paths: list[tuple[str, str]] = []
     index = 0
@@ -470,9 +445,7 @@ def git_pending_paths(root: Path, subdir: str) -> list[tuple[str, str]]:
         if len(record) < 4:
             continue
         status, path = record[:2], record[3:]
-        # Rebase a toplevel-relative payload onto `root` (issue #13); with
-        # an empty prefix (root IS the toplevel, or the toplevel could not
-        # be established) the path passes through as-is.
+        # With an empty prefix the path passes through as-is.
         if prefix and path.startswith(f"{prefix}/"):
             path = path[len(prefix) + 1 :]
         # A rename or copy record is `XY <dest>` with the origin path as the
@@ -482,15 +455,13 @@ def git_pending_paths(root: Path, subdir: str) -> list[tuple[str, str]]:
         # a skipped record leaves its origin to be misread as the next record.
         if "R" in status or "C" in status:
             index += 1
-        # Nothing here to hold to a contract: an unmerged entry is a merge in
-        # motion, and a "D" in either column means the working tree has no file
-        # at that path for a gate to open.
+        # An unmerged entry is a merge in motion, and a "D" in either column
+        # means the working tree has no file at that path for a gate to open.
         if status in GIT_UNMERGED or "D" in status:
             continue
-        # The payload is the literal path: `-z` performs no quoting or
-        # backslash-escaping, and git always emits `/` separators - so a
-        # backslash or `"` here is a genuine filename character, and the old
-        # unquote/normalise steps would be corruption, not cleanup (issue #6).
+
+        # A `\`|`"` here is a genuine filename character and unquote/normalise
+        # steps would be corruption, not cleanup.
         paths.append((status, path))
     return paths
 

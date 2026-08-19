@@ -21,9 +21,8 @@ class GateSpecEditTests(TempDirCase):
         }
 
     def test_asks_on_specs_write(self) -> None:
-        # Never a hard deny - spec amendment is legitimate stage-01
-        # re-entry work; the human is the gate, and the reason must name
-        # the stage rule so the approval is informed.
+        """Check a write to a `specs/` file is not automatically approved."""
+
         _rc, out, _err = call_gate_main(
             gate_spec_edit, self._event("specs", "commands", "find.md")
         )
@@ -34,6 +33,8 @@ class GateSpecEditTests(TempDirCase):
         )
 
     def test_silent_outside_specs(self) -> None:
+        """Check a write to a non-`specs/` file is automatically approved."""
+
         rc, out, _err = call_gate_main(
             gate_spec_edit, self._event("src", "x.py")
         )
@@ -41,10 +42,8 @@ class GateSpecEditTests(TempDirCase):
         self.assertEqual(out.strip(), "")
 
     def test_a_malformed_tool_input_degrades_to_silence(self) -> None:
-        # `read_event` only guards the top-level event (issue #15): a
-        # present-but-non-dict `tool_input` crashed the gate with an
-        # `AttributeError` on the chained `.get`. It must degrade to
-        # exit 0 with no verdict instead.
+        """Check that a malformed `tool_input` does not crash the gate."""
+
         for tool_input in (None, "file_path", ["/x/y.md"]):
             with self.subTest(tool_input=tool_input):
                 rc, out, _err = call_gate_main(
@@ -55,8 +54,8 @@ class GateSpecEditTests(TempDirCase):
                 self.assertEqual(out.strip(), "")
 
     def test_silent_for_examples_specs(self) -> None:
-        # Only the top-level tree declares desired state; a nested
-        # `specs/` directory is somebody else's example.
+        """Check a write to `examples/specs/` is automatically approved."""
+
         _rc, out, _err = call_gate_main(
             gate_spec_edit, self._event("examples", "specs", "a.md")
         )
