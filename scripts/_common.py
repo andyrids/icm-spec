@@ -40,7 +40,7 @@ SPEC_HIERARCHY = {
 }
 """Spec frontmatter matching expected Layer 3 hierarchy.
 
-Carries no `maximum-context-tokens`: specs are unbudgeted by design
+Carries no `recommended-context-tokens`: specs are unbudgeted by design
 (`AGENTS.md`), so only the three routing keys are contracted.
 """
 

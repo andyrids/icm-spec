@@ -2,7 +2,7 @@
 context-hierarchy: Layer 1
 context-hierarchy-role: Workspace routing
 immutable: false
-maximum-context-tokens: 300
+recommended-context-tokens: 300
 ---
 
 # Workspace routing

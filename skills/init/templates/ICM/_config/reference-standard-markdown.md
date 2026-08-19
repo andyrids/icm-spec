@@ -2,7 +2,7 @@
 context-hierarchy: Layer 3
 context-hierarchy-role: Reference material
 immutable: true
-maximum-context-tokens: 2500
+recommended-context-tokens: 2500
 tags: [documentation, markdown, style-guide]
 ---
 
@@ -143,7 +143,7 @@ The common failure is not missing stops but mixing both forms inside one block:
 context-hierarchy: Layer 3
 context-hierarchy-role: Reference material
 immutable: true
-maximum-context-tokens: 2500
+recommended-context-tokens: 2500
 tags: [keyword, ...]
 ---
 ```

@@ -12,7 +12,7 @@ set dotenv-load := true
 
 [doc("Run every check")]
 [group("TEST")]
-test: test-gates test-paths test-budgets test-manifest
+test: test-gates test-paths test-manifest
 
 [doc("Unit tests for the gate scripts, preflight and the check_*.py helpers")]
 [group("TEST")]
@@ -23,11 +23,6 @@ test-gates:
 [group("TEST")]
 test-paths:
     uv run --no-project python scripts/tests/check_paths.py
-
-[doc("Every declared maximum-context-tokens budget is respected")]
-[group("TEST")]
-test-budgets:
-    uv run --no-project --script scripts/tests/check_budgets.py
 
 [doc("The version agrees everywhere it is stated")]
 [group("TEST")]

@@ -37,7 +37,7 @@ NOT_SCAFFOLDED = {
         "promoted into on the first project-wide principle - scaffolding it "
         "empty would ship a constitution with nothing in it"
     ),
-    "README.md": "the project's own README, which ICM neither writes nor owns",
+    "README.md": "the project README, which ICM neither writes nor owns",
 }
 """Paths deliberately absent from a fresh scaffold."""
 

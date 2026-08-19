@@ -2,7 +2,7 @@
 context-hierarchy: Layer 3
 context-hierarchy-role: Reference material
 immutable: true
-maximum-context-tokens: 2500
+recommended-context-tokens: 2500
 tags: [specs, invariants, protocol]
 ---
 
@@ -55,7 +55,7 @@ tags: [keyword, ...]   # what this spec is about, for retrieval
 ```
 
 Every file under `specs/**` carries it, `specs/principles.md` included, and the block is what
-makes the file routable by layer. There is no `maximum-context-tokens` key - specs are unbudgeted
+makes the file routable by layer. There is no `recommended-context-tokens` key - specs are unbudgeted
 by design, because a spec is as long as the behaviour it declares. `immutable: false` is what
 separates a spec from the factory configuration sharing this layer: the pipeline exists to amend
 specs, and stage 01 owns every amendment.

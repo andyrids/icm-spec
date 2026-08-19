@@ -16,13 +16,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > - `Fixed` for any bug fixes.
 > - `Security` in case of vulnerabilities.
 
-## [unreleased]
+## [1.2.0]
 
 ### Added
 
 - `gate_spec_frontmatter` - a PostToolUse gate that feeds context back when a written spec has
   no frontmatter block or a missing or wrong Layer 3 hierarchy key (#18)
 - A `## Frontmatter` section in `specs/README.md`, the contract the new gate cites (#18)
+
+### Changed
+
+- `maximum-context-tokens` is renamed `recommended-context-tokens` across the frontmatter
+  contract - the layer budgets are guidance, not a build-breaking limit
+- `AGENTS.md` reframes the token budget bullet from an enforced ceiling to a signal worth a look
+
+### Removed
+
+- `check_budgets.py` and its `just test-budgets` recipe - a pass/fail test no longer fits a
+  recommendation rather than a constraint
 
 ### Fixed
 
