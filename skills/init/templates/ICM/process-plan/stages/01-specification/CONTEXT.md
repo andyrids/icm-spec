@@ -2,7 +2,7 @@
 context-hierarchy: Layer 2
 context-hierarchy-role: Stage contract
 immutable: false
-maximum-context-tokens: 500
+recommended-context-tokens: 500
 ---
 
 # Stage 01 - specification
@@ -24,7 +24,8 @@ implemented here - this stage decides what will be true and how the work is shap
 
 1. Choose the kebab-case slug; it correlates every artifact this run produces.
 2. Write or amend the spec under `specs/**` - declarative, observable behaviour only, per the
-   authoring standard. After amending, run the ripple check in `specs/README.md`.
+   authoring standard, using the frontmatter contract in `specs/README.md`. After amending, run
+   the ripple check there.
 3. Open `plans/<slug>.md` at `status: planned`, using the frontmatter contract and fixed section
    order in `plans/README.md`. A spec goes in `specs:` if this plan changes code to conform, in
    `authors:` if it only writes it - one field, never both. Write Validation criteria in EARS.

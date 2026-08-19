@@ -25,6 +25,8 @@ The rules that bite most often:
 - A new spec on the default branch needs an owning plan unless the behaviour already exists -
   named in that plan's `specs:` if code changes to conform, its `authors:` if the plan only
   writes the spec. Invariant 1 in `specs/README.md`.
+- Every spec opens with the `context-hierarchy` / `context-hierarchy-role` / `immutable` / `tags`
+  frontmatter block in `specs/README.md`. Without it the spec is not routable by layer.
 - After amending a spec, run the ripple check: `grep -l '<spec path>' plans/*.md`, then flag the
   plans chasing the old desired state.
 - Spec/code divergence is a bug, not debt. Fix the code or amend the spec - never work around a

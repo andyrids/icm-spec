@@ -2,14 +2,13 @@
 # requires-python = ">=3.10"
 # dependencies = []
 # ///
-"""Gate: plan frontmatter stays queryable.
+"""Gate: spec frontmatter stays routable.
 
 Event: PostToolUse (Edit|Write) - cannot block; feeds `additionalContext`
-back when a written plan has a missing or invalid frontmatter block, a
-`status` outside the enum, a `specs:` or `authors:` entry that does not
-resolve to a file, a spec claimed by both fields at once, or a missing Layer 4
-hierarchy key. The frontmatter is the query surface every coverage and ripple
-check reads, so an invalid value silently drops the plan out of every query.
+back when a written spec has no frontmatter block, or a missing or wrong
+Layer 3 hierarchy key. The block is what places the file in the context
+hierarchy, so a spec without it is unroutable by layer - loaded by whoever
+happens to open it rather than by the stage the layer contract assigns.
 
 License:
     SPDX-License-Identifier: Apache-2.0
@@ -19,12 +18,10 @@ import sys
 from pathlib import Path
 
 from _common import (
-    EXPECTED_HIERARCHY,
-    LIST_KEYS,
-    STATUS_ENUM,
+    SPEC_HIERARCHY,
     emit,
     is_icm_project,
-    parse_plan_frontmatter,
+    parse_hierarchy,
     project_dir,
     read_event,
     relative_posix,
@@ -42,12 +39,16 @@ def main() -> int:
     if not is_icm_project(root):
         return 0
     rel = relative_posix(file_path, root)
+    # No depth constraint, unlike the plan gate: specs nest
+    # (`specs/commands/find.md`) and `specs/principles.md` is flat, and both
+    # are in scope. `specs/README.md` is excluded because it is Layer 3
+    # reference material at `immutable: true` with a budget - a different
+    # schema, held by its own contract rather than this one.
     if (
         rel is None
-        or not rel.startswith("plans/")
-        or rel.count("/") != 1
+        or not rel.startswith("specs/")
         or not rel.endswith(".md")
-        or rel == "plans/README.md"
+        or rel == "specs/README.md"
     ):
         return 0
     try:
@@ -59,40 +60,27 @@ def main() -> int:
     except (OSError, ValueError):
         return 0
     problems = []
-    meta = parse_plan_frontmatter(text)
+    meta = parse_hierarchy(text, SPEC_HIERARCHY)
     if meta is None:
         problems.append("no YAML frontmatter block")
     else:
-        if meta["status"] not in STATUS_ENUM:
-            problems.append(
-                f"status '{meta['status']}' is not one of: {', '.join(sorted(STATUS_ENUM))}"
-            )
-        for key, expected in EXPECTED_HIERARCHY.items():
+        # `tags` is deliberately unchecked: it aids retrieval, and a gate
+        # demanding keywords would invite placeholder ones.
+        for key, expected in SPEC_HIERARCHY.items():
             if meta[key] is None:
                 problems.append(f"{key}: is missing (expected '{expected}')")
             elif meta[key] != expected:
                 problems.append(
                     f"{key}: is '{meta[key]}', expected '{expected}'"
                 )
-        for key in LIST_KEYS:
-            for spec in meta[key]:
-                if not (root / spec).is_file():
-                    problems.append(
-                        f"{key}: entry '{spec}' does not resolve to a file"
-                    )
-        for spec in set(meta["specs"]) & set(meta["authors"]):
-            problems.append(
-                f"'{spec}' is in both specs: and authors: - a spec whose code this plan "
-                "brings into conformance belongs in specs: alone"
-            )
     if not problems:
         return 0
     emit(
         "PostToolUse",
         additionalContext=(
-            f"{rel} has invalid plan frontmatter ({'; '.join(problems)}). The frontmatter "
-            "contract is in plans/README.md; fix it now, because every coverage and ripple "
-            "query reads it."
+            f"{rel} has invalid spec frontmatter ({'; '.join(problems)}). The frontmatter "
+            "contract is in specs/README.md; fix it now, because the block is what makes "
+            "the spec routable by layer."
         ),
     )
     return 0

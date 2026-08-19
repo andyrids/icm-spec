@@ -24,7 +24,10 @@ import sys
 from _common import is_icm_project, project_dir, read_event
 
 MARKER = "[NEEDS CLARIFICATION"
+"""Unresolved question marker in Stage 01 output."""
+
 QUESTION = re.compile(r"\[NEEDS CLARIFICATION[^\]]*\]")
+"""Regex to find unresolved questions in Stage 01 output."""
 
 
 def main() -> int:
@@ -40,10 +43,11 @@ def main() -> int:
     for path in sorted(root.glob("ICM/*/stages/01-*/output/*.md")):
         try:
             text = path.read_text(encoding="utf-8")
-        # UnicodeDecodeError included (issue #8): it is a ValueError, not an
-        # OSError, and without it one non-UTF-8 scratch file aborted the loop
+        # ValueError included (issues #8, #17): it covers UnicodeDecodeError
+        # for a non-UTF-8 scratch file and the embedded-NUL path that only
+        # raises inside read_text - without it one bad file aborted the loop
         # before the remaining stage 01 output could be scanned.
-        except (OSError, UnicodeDecodeError):
+        except (OSError, ValueError):
             continue
         if MARKER not in text:
             continue

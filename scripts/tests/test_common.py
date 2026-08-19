@@ -1,10 +1,8 @@
-"""Layer A: every public function in `_common.py`, no subprocess.
+"""Layer A: every public function in `_common.py`.
 
-The module every gate's verdict flows through previously had no direct
-test at all - each function was exercised only as a side effect of some
-gate blocking. `git_pending_paths` is tested against a mocked
-`subprocess.run` here; the porcelain matrix proves against real git that
-the fixtures are shaped like the records it emits.
+NOTE: `git_pending_paths` is tested against a mocked `subprocess.run` here;
+the porcelain matrix proves against real git that the fixtures are shaped like
+the records it emits.
 
 Run: python -m unittest discover -s scripts/tests -t scripts
 
@@ -21,7 +19,7 @@ from unittest import mock
 
 import _common
 
-from .support import TempDirCase, make_icm_tree, write_bytes
+from .support import TempDirCase, make_icm_tree, utf8_stdin, write_bytes
 
 
 def _status_proc(stdout: bytes, returncode: int = 0) -> mock.Mock:
@@ -36,38 +34,123 @@ def _status_proc(stdout: bytes, returncode: int = 0) -> mock.Mock:
 
 class ReadEventTests(unittest.TestCase):
     def test_parses_a_json_object(self) -> None:
+        """Check that a JSON object is parsed from stdin."""
         event = {"cwd": "/x", "stop_hook_active": False}
-        with mock.patch("sys.stdin", io.StringIO(json.dumps(event))):
+        with mock.patch("sys.stdin", utf8_stdin(json.dumps(event))):
             self.assertEqual(_common.read_event(), event)
 
     def test_invalid_json_degrades_to_empty(self) -> None:
-        # Exit 2 is reserved for hard blocks; a malformed event must never
-        # crash a gate, so the parse failure degrades to {}.
-        with mock.patch("sys.stdin", io.StringIO("not json")):
+        """Check that invalid JSON degrades to an empty dict."""
+        with mock.patch("sys.stdin", utf8_stdin("not json")):
             self.assertEqual(_common.read_event(), {})
 
     def test_non_dict_json_degrades_to_empty(self) -> None:
-        with mock.patch("sys.stdin", io.StringIO("[1, 2]")):
+        """Check that non-dict JSON degrades to an empty dict."""
+        with mock.patch("sys.stdin", utf8_stdin("[1, 2]")):
             self.assertEqual(_common.read_event(), {})
+
+    def test_reads_the_byte_layer_as_utf8(self) -> None:
+        """Check that the byte layer is read as UTF-8.
+
+        NOTE: `read_event` decodes `sys.stdin.buffer` as UTF-8 by hand
+        (issue #14).
+        """
+        payload = json.dumps({"cwd": "/tmp/naïve-café"}, ensure_ascii=False)
+        stand_in = io.TextIOWrapper(
+            io.BytesIO(payload.encode("utf-8")), encoding="latin-1"
+        )
+        with mock.patch("sys.stdin", stand_in):
+            self.assertEqual(
+                _common.read_event(), {"cwd": "/tmp/naïve-café"}
+            )
+
+    def test_undecodable_bytes_degrade_without_raising(self) -> None:
+        """Check that undecodable bytes degrade to an empty dict.
+
+        NOTE: `read_event` decodes `sys.stdin.buffer` as UTF-8 by hand
+        (issue #14)."""
+        stand_in = io.TextIOWrapper(io.BytesIO(b"\xff\xfe"), encoding="utf-8")
+        with mock.patch("sys.stdin", stand_in):
+            self.assertEqual(_common.read_event(), {})
+
+
+class ToolInputTests(unittest.TestCase):
+    def test_returns_the_dict_when_present(self) -> None:
+        """Check that the dict is returned when present."""
+        event = {"tool_input": {"file_path": "/x/y.md"}}
+        self.assertEqual(
+            _common.tool_input(event), {"file_path": "/x/y.md"}
+        )
+
+    def test_absent_key_degrades_to_empty(self) -> None:
+        """Check that an absent key degrades to an empty dict."""
+        self.assertEqual(_common.tool_input({}), {})
+
+    def test_null_degrades_to_empty(self) -> None:
+        """Check that a null value degrades to an empty dict.
+
+        NOTE: `tool_input` is expected to be a dict, but the event may have
+        it set to None.
+        """
+        self.assertEqual(_common.tool_input({"tool_input": None}), {})
+
+    def test_string_degrades_to_empty(self) -> None:
+        """Check that a string value degrades to an empty dict."""
+        self.assertEqual(
+            _common.tool_input({"tool_input": "file_path"}), {}
+        )
+
+    def test_list_degrades_to_empty(self) -> None:
+        """Check that a list value degrades to an empty dict."""
+        self.assertEqual(
+            _common.tool_input({"tool_input": ["/x/y.md"]}), {}
+        )
 
 
 class ProjectDirTests(unittest.TestCase):
     def test_resolves_cwd_from_the_event(self) -> None:
+        """Check that the cwd from the event is resolved."""
         self.assertEqual(
             _common.project_dir({"cwd": "."}), Path(".").resolve()
         )
 
     def test_missing_cwd_falls_back_to_dot(self) -> None:
+        """Check that a missing cwd falls back to the current directory."""
         self.assertEqual(_common.project_dir({}), Path(".").resolve())
+
+    def test_falsy_cwd_falls_back_to_dot(self) -> None:
+        """Check that a falsy cwd falls back to the current directory."""
+        self.assertEqual(
+            _common.project_dir({"cwd": ""}), Path(".").resolve()
+        )
+        self.assertEqual(
+            _common.project_dir({"cwd": None}), Path(".").resolve()
+        )
+
+    def test_non_string_truthy_cwd_never_raises(self) -> None:
+        """Check that a non-string truthy cwd never raises.
+
+        NOTE: `project_dir` is expected to be a string, but the event may have
+        it set to a non-string value.
+        """
+
+        for cwd in (42, True, ["a"], {"a": 1}):
+            with self.subTest(cwd=cwd):
+                self.assertEqual(
+                    _common.project_dir({"cwd": cwd}),
+                    Path(str(cwd)).resolve(),
+                )
 
 
 class IsIcmProjectTests(TempDirCase):
     scaffold_icm = False
 
     def test_false_without_the_marker(self) -> None:
+        """Check that the marker file is required for an ICM project."""
         self.assertFalse(_common.is_icm_project(self.root))
 
     def test_true_once_icm_init_has_run(self) -> None:
+        """Check that the marker file is created by `icm:init`."""
         make_icm_tree(self.root)
         self.assertTrue(_common.is_icm_project(self.root))
 
@@ -76,6 +159,7 @@ class RelativePosixTests(TempDirCase):
     scaffold_icm = False
 
     def test_inside_the_root_is_forward_slashed(self) -> None:
+        """Check that a path inside the root is returned with `/`."""
         inside = self.root / "specs" / "commands" / "find.md"
         self.assertEqual(
             _common.relative_posix(str(inside), self.root),
@@ -83,26 +167,48 @@ class RelativePosixTests(TempDirCase):
         )
 
     def test_outside_the_root_is_none(self) -> None:
+        """Check that a path outside the root returns None."""
         outside = self.root.parent / "elsewhere.md"
         self.assertIsNone(_common.relative_posix(str(outside), self.root))
+
+    def test_a_relative_path_anchors_on_root_not_process_cwd(self) -> None:
+        """Check a relative path is anchored on the root, not the process cwd.
+
+        NOTE: `Path(file_path).resolve()` anchored a relative path on the
+        process actual cwd, contradicting the docstring (issue #15).
+        """
+
+        self.assertEqual(
+            _common.relative_posix("specs/commands/find.md", self.root),
+            "specs/commands/find.md",
+        )
+
+    def test_a_relative_path_escaping_root_is_none(self) -> None:
+        self.assertIsNone(
+            _common.relative_posix("../elsewhere.md", self.root)
+        )
 
 
 class FrontmatterLinesTests(unittest.TestCase):
     def test_returns_the_block_lines(self) -> None:
+        """Check that the frontmatter block lines are returned."""
         text = "---\nstatus: done\npr: 7\n---\n\n# Plan\n"
         self.assertEqual(
             _common.frontmatter_lines(text), ["status: done", "pr: 7"]
         )
 
     def test_no_opening_fence_is_none(self) -> None:
+        """Check that missing opening fence returns None."""
         self.assertIsNone(_common.frontmatter_lines("# Plan\n"))
 
     def test_unterminated_fence_is_none(self) -> None:
+        """Check that an unterminated frontmatter fence returns None."""
         self.assertIsNone(_common.frontmatter_lines("---\nstatus: done\n"))
 
 
 class ParsePlanFrontmatterTests(unittest.TestCase):
     def test_scalars_lists_and_hierarchy_keys(self) -> None:
+        """Check that scalars, lists, and hierarchy keys are parsed."""
         meta = _common.parse_plan_frontmatter(
             "---\n"
             "context-hierarchy: Layer 4\n"
@@ -131,6 +237,7 @@ class ParsePlanFrontmatterTests(unittest.TestCase):
         self.assertEqual(meta["immutable"], "false")
 
     def test_inline_list_syntax(self) -> None:
+        """Check that inline list syntax is parsed."""
         meta = _common.parse_plan_frontmatter(
             "---\nspecs: [specs/a.md, specs/b.md]\n---\n"
         )
@@ -138,19 +245,24 @@ class ParsePlanFrontmatterTests(unittest.TestCase):
         self.assertEqual(meta["specs"], ["specs/a.md", "specs/b.md"])
 
     def test_empty_values_read_as_none(self) -> None:
+        """Check that empty frontmatter values are read as None."""
         meta = _common.parse_plan_frontmatter("---\nstatus:\npr:\n---\n")
         assert meta is not None
         self.assertIsNone(meta["status"])
         self.assertIsNone(meta["pr"])
 
     def test_no_frontmatter_is_none(self) -> None:
+        """Check that no frontmatter returns None."""
         self.assertIsNone(_common.parse_plan_frontmatter("# Plan\n"))
 
     def test_quoted_block_entries_read_as_bare_paths(self) -> None:
-        # The defect in issue #9: quoting a value is ordinary YAML, but the
-        # quote characters survived into the parsed entry, so the coverage
-        # key matched no path on disk and gate_spec_coverage blocked the
-        # Stop naming a spec the plan demonstrably owned.
+        """Check that quoted block entries are read as bare paths.
+
+        NOTE: Quoted block entries should be interpreted as bare paths,
+        as quoting a value is ordinary YAML, which should not affect
+        interpretation of the value.
+        """
+
         meta = _common.parse_plan_frontmatter(
             "---\n"
             "specs:\n"
@@ -164,8 +276,8 @@ class ParsePlanFrontmatterTests(unittest.TestCase):
         )
 
     def test_quoted_inline_list_mixed_quote_styles(self) -> None:
-        # Issue #9's exact fixture: flow-sequence elements unquote
-        # per-element, each in its author's own quote style.
+        """Check that quoted inline list entries are read as bare paths."""
+
         meta = _common.parse_plan_frontmatter(
             "---\n"
             "specs: [\"specs/a.md\", 'specs/b.md', specs/c.md]\n"
@@ -177,10 +289,11 @@ class ParsePlanFrontmatterTests(unittest.TestCase):
         )
 
     def test_a_hash_inside_quotes_is_not_a_comment(self) -> None:
-        # The row that distinguishes the quote-aware `_strip_comment` from
-        # a naive reorder of strip and unquote: splitting on the first `#`
-        # unconditionally truncated this entry to `"specs/a` before any
-        # unquoting could see the pair (issue #9).
+        """Check that a hash inside quotes is not treated as a comment.
+
+        NOTE: A hash inside quotes should not be treated as a comment.
+        """
+
         meta = _common.parse_plan_frontmatter(
             '---\nspecs:\n  - "specs/a#b.md"\n---\n'
         )
@@ -188,8 +301,12 @@ class ParsePlanFrontmatterTests(unittest.TestCase):
         self.assertEqual(meta["specs"], ["specs/a#b.md"])
 
     def test_a_quoted_entry_with_a_trailing_comment(self) -> None:
-        # The `#` after the closing quote is back outside the quoted
-        # region, so it is a comment again.
+        """Check quoted entries with trailing comments are read as bare paths.
+
+        NOTE: The trailing comment after a quoted entry should not affect the
+        interpretation of the value.
+        """
+
         meta = _common.parse_plan_frontmatter(
             '---\nspecs:\n  - "specs/a.md"  # trailing comment\n---\n'
         )
@@ -197,10 +314,12 @@ class ParsePlanFrontmatterTests(unittest.TestCase):
         self.assertEqual(meta["specs"], ["specs/a.md"])
 
     def test_unbalanced_quotes_are_left_verbatim(self) -> None:
-        # `_unquote` strips exactly one matching surrounding pair: an
-        # internal apostrophe is a filename character, and an unterminated
-        # quote is the author's typo for a gate to name as written, not
-        # the parser's to guess at (issue #9).
+        """Check that unbalanced quotes are left verbatim.
+
+        NOTE: Unbalanced quotes should be left verbatim, as they are not valid
+        YAML and should not be interpreted as quoted values.
+        """
+
         meta = _common.parse_plan_frontmatter(
             "---\n"
             "specs:\n"
@@ -214,8 +333,8 @@ class ParsePlanFrontmatterTests(unittest.TestCase):
         )
 
     def test_a_quoted_status_reads_as_the_bare_enum_member(self) -> None:
-        # `status: "done"` is legal YAML today; the scalar site unquotes
-        # too, so it must not read as off-enum (issue #9).
+        """Check that a quoted status reads as the bare enum member."""
+
         meta = _common.parse_plan_frontmatter('---\nstatus: "done"\n---\n')
         assert meta is not None
         self.assertEqual(meta["status"], "done")
@@ -223,9 +342,8 @@ class ParsePlanFrontmatterTests(unittest.TestCase):
 
 class PlanSpecPathsTests(unittest.TestCase):
     def test_unions_both_fields_and_normalises_backslashes(self) -> None:
-        # `specs` and `authors` answer different questions, but Invariant 1
-        # asks only whether some plan owns the spec at all - either answer
-        # means yes, hence the union.
+        """Check both fields are unioned and backslashes are normalised."""
+
         meta = {
             "specs": ["specs/commands/a.md", "specs\\commands\\b.md"],
             "authors": ["specs/behaviors/c.md"],
@@ -240,9 +358,12 @@ class PlanSpecPathsTests(unittest.TestCase):
         )
 
     def test_quoted_frontmatter_flows_through_unquoted(self) -> None:
-        # End-to-end over the two helpers (issue #9): a quoted plan parses
-        # to bare paths, so the coverage set holds keys a `git status`
-        # payload can actually match.
+        """Check that quoted frontmatter flows through unquoted.
+
+        NOTE: Quoted frontmatter should be interpreted as bare paths, so the
+        coverage set holds keys a `git status` payload can actually match.
+        """
+
         meta = _common.parse_plan_frontmatter(
             "---\n"
             'specs:\n  - "specs/a.md"\n'
@@ -259,6 +380,7 @@ class IterPlansTests(TempDirCase):
     scaffold_icm = False
 
     def test_yields_sorted_plans_without_readme(self) -> None:
+        """Check that plans are yielded sorted, without `README.md`."""
         plans = self.root / "plans"
         plans.mkdir()
         (plans / "b.md").write_text("# b", encoding="utf-8")
@@ -271,15 +393,12 @@ class IterPlansTests(TempDirCase):
         self.assertEqual(found[0][1], "# a")
 
     def test_missing_plans_directory_yields_nothing(self) -> None:
+        """Check that a missing `plans` directory yields nothing."""
         self.assertEqual(list(_common.iter_plans(self.root)), [])
 
     def test_a_non_utf8_plan_does_not_stop_the_others(self) -> None:
-        # The defect in issue #8: `UnicodeDecodeError` is a `ValueError`,
-        # which `except OSError` never caught, so one latin-1 plan aborted
-        # the generator out of the caller's loop and took Invariant 1 down
-        # for the whole tree. The load-bearing assertion is that the good
-        # plan is still yielded - "bad.md" sorts first, so the generator
-        # must survive it to get there - not merely that nothing raises.
+        """Check that a non-UTF-8 plan does not stop the others."""
+
         write_bytes(self.root, "plans/bad.md", b"---\nstatus: caf\xe9\n---\n")
         (self.root / "plans" / "good.md").write_text(
             "# good", encoding="utf-8"
@@ -287,29 +406,58 @@ class IterPlansTests(TempDirCase):
         found = list(_common.iter_plans(self.root))
         self.assertEqual([path.name for path, _text in found], ["good.md"])
 
+    def test_an_embedded_nul_path_does_not_stop_the_others(self) -> None:
+        """Check that an embedded NUL path does not stop the others.
+        
+        NOTE: The residue of issue #8 (issue #17): a NUL in a path survives
+        `resolve()` and `relative_to()` and only raises inside `read_text`,
+        as a `ValueError`. No filesystem can hold a NUL filename.
+        """
+
+        plans = self.root / "plans"
+        plans.mkdir()
+        good = plans / "good.md"
+        good.write_text("# good", encoding="utf-8")
+        nul = plans / "bad\x00plan.md"
+        with mock.patch.object(Path, "glob", return_value=[nul, good]):
+            found = list(_common.iter_plans(self.root))
+        self.assertEqual([path.name for path, _text in found], ["good.md"])
+
 
 class GitPendingPathsTests(unittest.TestCase):
     """Parsing contract only - real git behaviour lives in the matrix.
 
-    Fixtures are the NUL-terminated records of `git status --porcelain -z`
-    (issue #6): `XY <path>\\0`, with a rename's origin as its own trailing
-    field. The characters `-z` exists for - non-ASCII, `"`, backslash -
-    cannot be created on NTFS, so the mocked bytes here are the only place
-    those trigger classes are testable; the matrix covers what real git on
-    this filesystem can produce.
+    NOTE: Fixtures are NUL-terminated records of `git status --porcelain -z`
+    (issue #6).
     """
 
-    def _pending(self, stdout: bytes) -> list[tuple[str, str]]:
+    def _pending(
+        self,
+        stdout: bytes,
+        root: Path | None = None,
+        toplevel: mock.Mock | BaseException | None = None,
+    ) -> list[tuple[str, str]]:
+        """Run `git_pending_paths` with both subprocess calls faked.
+
+        The first `subprocess.run` is the porcelain status call, the second
+        is `git rev-parse --show-toplevel` (issue #13). By default the
+        faked toplevel IS the root, so the computed prefix is empty and
+        every payload passes through as-is - the shape of the historical
+        single-call fixtures. Pass `toplevel` as a canned proc for a
+        different toplevel, or as an exception instance to fail that call.
+        """
+        root = Path(".").resolve() if root is None else root
+        if toplevel is None:
+            toplevel = _status_proc(f"{root}\n".encode())
         with mock.patch(
             "_common.subprocess.run",
-            return_value=_status_proc(stdout),
+            side_effect=[_status_proc(stdout), toplevel],
         ):
-            return _common.git_pending_paths(Path("."), "specs")
+            return _common.git_pending_paths(root, "specs")
 
     def test_status_column_is_positional(self) -> None:
-        # The raw two-character column, spaces preserved: callers test
-        # `status[0]` or `status[1]` and never `status.strip()`, which
-        # collapses "A " and "AM" onto different strings (issue #1).
+        """Check that the status column is positional, not stripped."""
+
         rows = [
             (b"?? specs/a.md\x00", [("??", "specs/a.md")]),
             (b"A  specs/a.md\x00", [("A ", "specs/a.md")]),
@@ -321,10 +469,8 @@ class GitPendingPathsTests(unittest.TestCase):
                 self.assertEqual(self._pending(stdout), expected)
 
     def test_rename_returns_the_destination_only(self) -> None:
-        # Under `-z` the field order is reversed - destination record first,
-        # origin as the next NUL field - and the arrow is gone, so a path
-        # containing " -> " is no longer ambiguous (it was under v1 newline
-        # output, which needed an rsplit bound to the last separator).
+        """Check that a rename returns the destination path only."""
+
         self.assertEqual(
             self._pending(b"R  specs/new.md\x00specs/old.md\x00"),
             [("R ", "specs/new.md")],
@@ -335,9 +481,8 @@ class GitPendingPathsTests(unittest.TestCase):
         )
 
     def test_rename_consumes_the_origin_field(self) -> None:
-        # One tuple exactly: the origin field is discarded, never misread
-        # as a second record - the destination is the only side a gate can
-        # open.
+        """Check a rename consumes the origin field & never misreads it."""
+
         self.assertEqual(
             self._pending(
                 b"R  specs/new.md\x00specs/old.md\x00?? specs/b.md\x00"
@@ -346,9 +491,8 @@ class GitPendingPathsTests(unittest.TestCase):
         )
 
     def test_dropped_rename_does_not_desync_the_stream(self) -> None:
-        # The ordering hazard in the parse loop: "RD" is dropped by the
-        # delete guard, but its origin field must still be consumed or
-        # "specs/old.md" would be read as the next record's status.
+        """Check that a dropped rename does not desync the stream."""
+
         self.assertEqual(
             self._pending(
                 b"RD specs/gone.md\x00specs/old.md\x00?? specs/next.md\x00"
@@ -357,67 +501,141 @@ class GitPendingPathsTests(unittest.TestCase):
         )
 
     def test_arrow_in_an_ordinary_filename_is_left_alone(self) -> None:
-        # A non-rename record has no origin field, so an arrow inside its
-        # path is just path.
+        """Check that an arrow in an ordinary filename is left alone."""
+
         self.assertEqual(
             self._pending(b"?? specs/a -> b.md\x00"),
             [("??", "specs/a -> b.md")],
         )
 
     def test_unmerged_and_deleted_entries_are_dropped(self) -> None:
-        # Nothing there to hold to a contract: an unmerged entry is a
-        # merge in motion, and a "D" in either column means no file on
-        # disk at that path.
+        """Check that unmerged and deleted entries are dropped."""
+
         for record in [b"AA specs/a.md\x00", b"UU specs/a.md\x00",
                        b" D specs/a.md\x00", b"D  specs/a.md\x00"]:
             with self.subTest(record=record):
                 self.assertEqual(self._pending(record), [])
 
     def test_nonascii_path_needs_no_unescaping(self) -> None:
-        # The defect in issue #6: newline porcelain C-quoted this path as
-        # "specs/caf\\303\\251.md" and the old strip/replace parse turned
-        # the escapes into phantom directories. `-z` emits the raw UTF-8
-        # bytes, so the decoded path is simply the file on disk.
+        """Check that a non-ASCII path needs no unescaping."""
+
         self.assertEqual(
             self._pending(b"?? specs/caf\xc3\xa9.md\x00"),
             [("??", "specs/café.md")],
         )
 
     def test_backslash_in_a_filename_is_preserved(self) -> None:
-        # The row that rejects `core.quotepath=false` as a fix: git escapes
-        # backslashes regardless of that setting, so only `-z` delivers the
-        # literal byte - and it is a filename character on POSIX, not a
-        # separator to normalise to "/".
+        """Check that a backslash in a filename is preserved.
+
+        NOTE: Git escapes backslashes in the porcelain output, so a literal
+        backslash in a filename is always escaped. The `-z` option preserves
+        the literal byte, so the filename is returned with the backslash
+        intact.
+        """
+
         self.assertEqual(
             self._pending(b"?? specs/a\\b.md\x00"),
             [("??", "specs/a\\b.md")],
         )
 
     def test_a_quote_is_a_literal_filename_character(self) -> None:
-        # Inverts the retired `test_quoted_paths_are_unquoted`: newline
-        # porcelain wrapped non-plain paths in quotes and the parse stripped
-        # them, taking a genuine leading/trailing `"` with it. Under `-z`
-        # git never quotes, so a `"` in the payload IS the filename.
+        """Check that a quote is a literal filename character."""
+
         self.assertEqual(
             self._pending(b'?? "specs/a.md"\x00'),
             [("??", '"specs/a.md"')],
         )
 
     def test_invalid_utf8_does_not_raise(self) -> None:
-        # `surrogateescape` turns a malformed byte into a path that matches
-        # no plan, rather than a UnicodeDecodeError no caller catches -
-        # exit 2 is reserved for hard blocks, never a crashed gate.
+        """Check that invalid UTF-8 does not raise."""
+
         self.assertEqual(
             self._pending(b"?? specs/\xff.md\x00"),
             [("??", "specs/\udcff.md")],
         )
 
     def test_short_records_are_skipped(self) -> None:
-        # Also covers the empty field after the final NUL terminator.
+        """Check that short records are skipped."""
+
         self.assertEqual(self._pending(b"??\x00"), [])
 
+    def test_toplevel_prefix_is_rebased_onto_the_root(self) -> None:
+        """Check that the toplevel prefix is rebased onto the root.
+
+        NOTE: Porcelain reports paths relative to the repository toplevel
+        regardless of `cwd`, while every caller compares against
+        ICM-root-relative paths.
+        """
+
+        repo = Path(".").resolve()
+        nested = repo / "sub"
+        def top_ok() -> mock.Mock:
+            return _status_proc(f"{repo}\n".encode())
+
+        rows = [
+            (
+                "icm root is the repo root: prefix empty",
+                repo,
+                top_ok(),
+                b"?? specs/a.md\x00",
+                [("??", "specs/a.md")],
+            ),
+            (
+                "icm root nested one level: prefix stripped",
+                nested,
+                top_ok(),
+                b"?? sub/specs/a.md\x00A  sub/plans/p.md\x00",
+                [("??", "specs/a.md"), ("A ", "plans/p.md")],
+            ),
+            (
+                "prefix matches whole components only, never a sibling",
+                nested,
+                top_ok(),
+                b"?? subx/specs/a.md\x00",
+                [("??", "subx/specs/a.md")],
+            ),
+            (
+                "rev-parse missing git: degrade to passthrough",
+                nested,
+                OSError("no git"),
+                b"?? sub/specs/a.md\x00",
+                [("??", "sub/specs/a.md")],
+            ),
+            (
+                "rev-parse timeout: degrade to passthrough",
+                nested,
+                subprocess.TimeoutExpired("git", 15),
+                b"?? sub/specs/a.md\x00",
+                [("??", "sub/specs/a.md")],
+            ),
+            (
+                "rev-parse non-zero (not a repo): degrade to passthrough",
+                nested,
+                _status_proc(b"fatal", returncode=128),
+                b"?? sub/specs/a.md\x00",
+                [("??", "sub/specs/a.md")],
+            ),
+            (
+                # The adversarial row: `root` outside the decoded toplevel
+                # (differing symlink resolution, fixtures) must degrade,
+                # not raise an uncaught ValueError out of the gate.
+                "root not below the toplevel: degrade to passthrough",
+                nested,
+                _status_proc(f"{repo / 'elsewhere'}\n".encode()),
+                b"?? sub/specs/a.md\x00",
+                [("??", "sub/specs/a.md")],
+            ),
+        ]
+        for name, root, toplevel, stdout, expected in rows:
+            with self.subTest(name=name):
+                self.assertEqual(
+                    self._pending(stdout, root=root, toplevel=toplevel),
+                    expected,
+                )
+
     def test_git_failure_degrades_to_empty(self) -> None:
-        # No repository means no verdict rather than a crash.
+        """Check that a git failure degrades to an empty list."""
+
         with mock.patch(
             "_common.subprocess.run",
             return_value=_status_proc(b"fatal", returncode=128),
@@ -442,6 +660,7 @@ class GitPendingPathsTests(unittest.TestCase):
 
 class EmitTests(unittest.TestCase):
     def test_writes_hook_specific_output_json(self) -> None:
+        """Check that hook-specific output is written as JSON."""
         buffer = io.StringIO()
         with mock.patch("sys.stdout", buffer):
             _common.emit("PreToolUse", permissionDecision="ask")

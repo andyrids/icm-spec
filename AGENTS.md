@@ -2,7 +2,7 @@
 context-hierarchy: Layer 0
 context-hierarchy-role: Global identity
 immutable: false
-maximum-context-tokens: 900
+recommended-context-tokens: 900
 ---
 
 # `icm-spec` plugin
@@ -28,17 +28,18 @@ has reached it - reading ahead is how a stage acquires context it was designed n
 | 2     | Stage routing     | `ICM/*/CONTEXT.md`              | false       | 500    |
 | 2     | Stage contract    | `ICM/*/stages/**/CONTEXT.md`    | false       | 500    |
 | 3     | Reference material| `ICM/_config/reference-*.md`, both READMEs | true | 2500 |
-| 3     | Desired state     | `specs/**/*.md`                 | false       | -      |
+| 3     | Reference material| `specs/**/*.md`                 | false       | -      |
 | 4     | Working artifact  | `plans/*.md`                    | false       | -      |
 | 4     | Working artifact  | `ICM/*/stages/**/output/*.md`   | false       | -      |
 
 ### Frontmatter
 
 Every file above carries `context-hierarchy`, `context-hierarchy-role` and `immutable` as tabled,
-plus `maximum-context-tokens` where a budget is given. Beyond those:
+plus `recommended-context-tokens` where a target is given. Beyond those:
 
-- **Budgets are ceilings, not suggestions.** A file that outgrows one has started doing another
-  layer's job. Specs are unbudgeted - a spec is as long as the behaviour it declares.
+- **Budgets are a signal, not an enforced limit.** A file that outgrows one is worth a look - it
+  may have started doing another layer's job. Specs are unbudgeted - a spec is as long as the
+  behaviour it declares.
 - **Layer 3** carries `tags: [keyword, ...]`. `immutable: true` marks the factory configuration,
   amended deliberately, not in passing. Specs are not part of it: the pipeline exists to amend
   them, and stage 01 owns every change.

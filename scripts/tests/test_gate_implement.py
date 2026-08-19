@@ -18,28 +18,36 @@ class GateImplementTests(TempDirCase):
         return {"cwd": str(self.root), "prompt": prompt}
 
     def test_blocks_with_no_open_plan(self) -> None:
+        """Check `gate_implement` blocks when there is no open plan."""
+
         rc, _out, err = call_gate_main(gate_implement, self._event())
         self.assertEqual(rc, 2)
         self.assertIn("plan", err)
 
     def test_passes_with_a_planned_plan(self) -> None:
+        """Check `gate_implement` passes when there is a planned plan."""
+
         write_plan(self.root, "my-feature", status="planned")
         rc, _out, _err = call_gate_main(gate_implement, self._event())
         self.assertEqual(rc, 0)
 
     def test_passes_with_an_in_progress_plan(self) -> None:
-        # Stage 02 itself flips `planned` to `in-progress`, so both
-        # states count as an open plan.
+        """Check `gate_implement` passes when there is an in-progress plan."""
+
         write_plan(self.root, "my-feature", status="in-progress")
         rc, _out, _err = call_gate_main(gate_implement, self._event())
         self.assertEqual(rc, 0)
 
     def test_blocks_when_the_only_plan_is_done(self) -> None:
+        """Check `gate_implement` blocks when the only plan is done."""
+
         write_plan(self.root, "my-feature", status="done", pr="1")
         rc, _out, _err = call_gate_main(gate_implement, self._event())
         self.assertEqual(rc, 2)
 
     def test_ignores_other_prompts(self) -> None:
+        """Check `gate_implement` ignores prompts for other gates."""
+
         rc, _out, _err = call_gate_main(
             gate_implement, self._event("/icm:specify x")
         )

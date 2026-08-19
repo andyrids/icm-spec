@@ -1,8 +1,8 @@
 """Shared helpers for the ICM gate hook scripts.
 
-Every gate reads one hook event as JSON on stdin and answers on stdout (JSON
-`hookSpecificOutput`) or via exit code. Exit 2 is reserved for hard blocks;
-anything unexpected degrades to exit 0 so a broken gate never wedges a session.
+Every gate reads one hook event as JSON on STDIN and answers on STDOUT (JSON
+`hookSpecificOutput`) or via exit code. Exit 2 is reserved for hard blocks.
+Anything unexpected degrades to exit 0 (broken gates never wedge a session).
 
 License:
     SPDX-License-Identifier: Apache-2.0
@@ -16,11 +16,14 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 STATUS_ENUM = {"planned", "in-progress", "done", "blocked", "cancelled"}
+"""Plan frontmatter `status` values."""
 
-# The two plan frontmatter fields that answer Invariant 1. `specs` names
-# conformance targets, `authors` names specs the plan writes without changing
-# code - a distinction the coverage gate needs and stage 03 must not blur.
 LIST_KEYS = ("specs", "authors")
+"""Plan frontmatter keys whose values are lists of spec paths, each a string.
+
+`specs` names conformance targets, `authors` names specs the plan writes
+without changing code.
+"""
 
 # Layer 4 hierarchy keys every plan carries (AGENTS.md).
 EXPECTED_HIERARCHY = {
@@ -28,6 +31,18 @@ EXPECTED_HIERARCHY = {
     "context-hierarchy-role": "Working artifact",
     "immutable": "false",
 }
+"""Plan frontmatter matching expected Layer 4 hierarchy."""
+
+SPEC_HIERARCHY = {
+    "context-hierarchy": "Layer 3",
+    "context-hierarchy-role": "Reference material",
+    "immutable": "false",
+}
+"""Spec frontmatter matching expected Layer 3 hierarchy.
+
+Carries no `recommended-context-tokens`: specs are unbudgeted by design
+(`AGENTS.md`), so only the three routing keys are contracted.
+"""
 
 SLUG_SUFFIX_BY_STAGE = {
     "01": "spec",
@@ -35,34 +50,78 @@ SLUG_SUFFIX_BY_STAGE = {
     "03": "test",
     "04": "docs",
 }
+"""Stage slug suffixes for the four Layer 4 stages."""
 
-# Porcelain v1 unmerged codes (git-status(1)). "DD", "DU" and "UD" carry a "D"
-# and the delete guard in `git_pending_paths` would drop them anyway; naming the
-# whole set makes "AA", "AU", "UA" and "UU" a decision rather than a side-effect
-# of that guard. A conflicted path is a merge in motion, not work under review:
-# the file holds conflict markers, `plans/` may itself be half-resolved, and the
-# only honest next action is to resolve, not to edit frontmatter. Nothing
-# escapes - once resolved and staged the same path presents as "A ", "AM" or
-# "M " and is judged on the next Stop.
+# (issue #14): `backslashreplace` keeps an unencodable byte visible rather
+# than fatal and the `hasattr` guard keeps a stream with no `reconfigure` a
+# no-op rather than a wedged session.
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
+
 GIT_UNMERGED = frozenset({"DD", "AU", "UD", "UA", "DU", "AA", "UU"})
+"""Porcelain v1 unmerged git status codes.
+
+"DD", "DU" and "UD" carry a "D" and the delete guard in `git_pending_paths`
+would drop them anyway; naming the whole set makes "AA", "AU", "UA" and "UU"
+a decision rather than a side-effect of that guard. A conflicted path is a
+merge in motion, not work under review: the file holds conflict markers,
+`plans/` may itself be half-resolved, and the only honest next action is to
+resolve, not to edit frontmatter. Nothing escapes - once resolved and staged
+the same path presents as "A ", "AM" or "M " and is judged on the next Stop.
+"""
 
 
 def read_event() -> dict[str, Any]:
     """Parse hook event JSON from STDIN.
 
+    NOTE: Reads `sys.stdin.buffer` and decodes UTF-8 by hand (issue #14):
+    `json.load(sys.stdin)` decoded through the OS locale, which under a
+    mismatched codepage produces wrong characters without ever raising, so
+    a non-ASCII `cwd` or `file_path` silently stopped resolving and the
+    gate degraded to exit 0. `errors="replace"` means the
+    `UnicodeDecodeError` arm below can no longer fire in practice; it stays
+    because it costs nothing and preserves the function's contract.
+
     Returns:
         The parsed event, or an empty dict on failure.
     """
     try:
-        data = json.load(sys.stdin)
+        raw = sys.stdin.buffer.read()
+        data = json.loads(raw.decode("utf-8", errors="replace"))
     except (json.JSONDecodeError, UnicodeDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
 
 
+def tool_input(event: dict[str, Any]) -> dict[str, Any]:
+    """Get the event's `tool_input` mapping, guarded against non-dict values.
+
+    NOTE: `read_event` only guarantees the *top-level* event is a dict
+    (issue #15): a present-but-non-dict `tool_input` (null, a string, a
+    list) sailed past every `event.get("tool_input", {})` whose `{}`
+    default fires only when the key is absent, and crashed the gate on the
+    chained `.get`. Anything unexpected degrades to `{}` instead.
+
+    Args:
+        event: The parsed hook event.
+
+    Returns:
+        The `tool_input` dict, or an empty dict when absent or malformed.
+    """
+    value = event.get("tool_input")
+    return value if isinstance(value, dict) else {}
+
+
 def project_dir(event: dict[str, Any]) -> Path:
-    """Get the current working directory."""
-    return Path(event.get("cwd") or ".").resolve()
+    """Get the current working directory.
+
+    NOTE: `str()` before `Path()` (issue #15): `or "."` guards only a
+    falsy `cwd`, so a non-string truthy value (int, True, list, dict)
+    reached `Path()` and raised `TypeError` out of every gate. A malformed
+    `cwd` now stringifies into a path that resolves somewhere harmless
+    instead of crashing the hook.
+    """
+    return Path(str(event.get("cwd") or ".")).resolve()
 
 
 def is_icm_project(root: Path) -> bool:
@@ -90,7 +149,10 @@ def relative_posix(file_path: str, root: Path) -> str | None:
         the root.
     """
     try:
-        rel = Path(file_path).resolve().relative_to(root)
+        # `Path(root, file_path)` anchors a *relative* `file_path` on `root`
+        # as the docstring promises, but a leading `/` on `file_path` makes
+        # it absolute.
+        rel = Path(root, file_path).resolve().relative_to(root)
     except (ValueError, OSError):
         return None
     return str(PurePosixPath(rel))
@@ -163,6 +225,43 @@ def _unquote(value: str) -> str:
     return value
 
 
+def parse_hierarchy(
+    text: str, expected: dict[str, str]
+) -> dict[str, str | None] | None:
+    """Extract the hierarchy keys of `expected` from a document's frontmatter.
+
+    NOTE: Scalar keys only, and only the keys asked for - anything else in
+    the block is left alone. `parse_plan_frontmatter` is not reusable here:
+    it owns `status`, `pr` and the list keys, which no other layer carries.
+    Values pass through `_strip_comment` then `_unquote`, so a commented or
+    quoted value compares as the bare string a gate reports (issue #9).
+
+    Args:
+        text: The markdown document as a string.
+        expected: The hierarchy mapping whose keys are read, such as
+            `EXPECTED_HIERARCHY` or `SPEC_HIERARCHY`.
+
+    Returns:
+        A dict with one entry per key of `expected`, each the parsed value
+        or None when the key is absent, or None if no frontmatter is found.
+    """
+    lines = frontmatter_lines(text)
+    if lines is None:
+        return None
+    result: dict[str, str | None] = dict.fromkeys(expected)
+    for line in lines:
+        if line.startswith((" ", "\t")):
+            continue
+        stripped = line.strip()
+        if ":" not in stripped:
+            continue
+        key, _, value = stripped.partition(":")
+        key = key.strip()
+        if key in expected:
+            result[key] = _unquote(_strip_comment(value)) or None
+    return result
+
+
 def parse_plan_frontmatter(text: str) -> dict[str, Any] | None:
     """Extract metadata from plan frontmatter.
 
@@ -197,12 +296,8 @@ def parse_plan_frontmatter(text: str) -> dict[str, Any] | None:
             continue
         key, _, value = stripped.partition(":")
         key = key.strip()
-        # Unquoted at every site a value is read (issue #9): quoting a value
-        # is ordinary YAML, and a surviving quote character breaks every
-        # comparison downstream - a coverage key that matches no `git status`
-        # payload, a `status: "done"` off the enum. Here rather than in
-        # `plan_spec_paths`, because `gate_plan_frontmatter` iterates the
-        # parsed lists directly and must see the same bare values.
+        # Quoting a value is ordinary YAML, and a surviving quote character
+        # breaks every comparison downstream.
         value = _unquote(_strip_comment(value))
         if key in LIST_KEYS:
             if value.startswith("[") and value != "[]":
@@ -243,10 +338,12 @@ def iter_plans(root: Path) -> Generator[tuple[Path, str], Any, None]:
     """Yield path and content of every plan document.
 
     NOTE: Excludes `README.md` and ignores unreadable files, so a broken plan
-    never wedges the gate. Unreadable includes undecodable:
-    `UnicodeDecodeError` is a `ValueError`, which `except OSError` never
-    caught, so one non-UTF-8 plan aborted the generator out of the caller's
-    loop and stopped every other plan being judged (issue #8).
+    never wedges the gate. Unreadable includes any `ValueError` raised by the
+    read - `UnicodeDecodeError` for a non-UTF-8 plan (issue #8) and the
+    embedded-NUL-path `ValueError` that only surfaces inside `read_text`
+    (issue #17) - which `except OSError` alone never caught, so one bad plan
+    aborted the generator out of the caller's loop and stopped every other
+    plan being judged.
 
     Args:
         root: The project root directory.
@@ -262,7 +359,7 @@ def iter_plans(root: Path) -> Generator[tuple[Path, str], Any, None]:
             continue
         try:
             yield path, path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+        except (OSError, ValueError):
             continue
 
 
@@ -284,12 +381,16 @@ def git_pending_paths(root: Path, subdir: str) -> list[tuple[str, str]]:
         test `status[0]` or `status[1]` and never `status.strip()`, which
         collapses "A " and "AM" onto different strings and silently drops the
         second. `path` is the file exactly as it exists in the working tree,
-        relative with `/` separators - `-z` output carries no quoting for the
-        parse to undo (issue #6). For a rename or copy git emits the
-        destination record first with the origin as the following NUL field,
-        and only the destination is returned, because it is the only side a
-        gate can open. Unmerged entries and anything deleted from the working
-        tree are omitted - there is no file there to hold to a contract.
+        relative to `root` with `/` separators - porcelain reports paths
+        relative to the repository toplevel regardless of `cwd`, so when
+        `root` sits below the toplevel the leading prefix is stripped before
+        callers compare against ICM-root-relative frontmatter (issue #13) -
+        and `-z` output carries no quoting for the parse to undo (issue #6).
+        For a rename or copy git emits the destination record first with the
+        origin as the following NUL field, and only the destination is
+        returned, because it is the only side a gate can open. Unmerged
+        entries and anything deleted from the working tree are omitted -
+        there is no file there to hold to a contract.
     """
     try:
         proc = subprocess.run(
@@ -303,14 +404,37 @@ def git_pending_paths(root: Path, subdir: str) -> list[tuple[str, str]]:
         return []
     if proc.returncode != 0:
         return []
-    # Decoded by hand rather than via `text=True` or `encoding=`: both wrap
-    # stdout in a TextIOWrapper whose universal-newline translation would
-    # rewrite a `\r` inside a POSIX filename, and `text=True` also decodes in
-    # the locale codepage rather than git's UTF-8 (issue #6). Never `\n`
-    # splitting: `-z` terminates records with NUL because a newline is itself
-    # a legal filename byte. `surrogateescape` cannot raise, so the `except`
-    # tuple above stays the whole failure surface and a malformed byte
-    # degrades to a path that matches no plan, not a crashed gate.
+
+    # Porcelain paths are relative to the repository toplevel regardless of
+    # the subprocess `cwd`.
+    prefix = ""
+    try:
+        top = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=root,
+            capture_output=True,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        top = None
+    if top is not None and top.returncode == 0:
+        decoded = top.stdout.decode("utf-8", errors="surrogateescape")
+        repo_top = Path(decoded.rstrip("\r\n")).resolve()
+        try:
+            # `root` may not be a subpath of the decoded toplevel (differing
+            # symlink resolution, test fixtures); that is a degrade.
+            relative = root.resolve().relative_to(repo_top)
+        except ValueError:
+            relative = None
+        if relative is not None:
+            posix = str(PurePosixPath(relative))
+            # "." means `root` IS the toplevel: nothing to strip.
+            if posix != ".":
+                prefix = posix
+
+    # `text=True`|`encoding=` would wrap stdout in a `TextIOWrapper`, which
+    # would rewrite a `\r` inside a POSIX filename.
     records = proc.stdout.decode("utf-8", errors="surrogateescape").split("\0")
     paths: list[tuple[str, str]] = []
     index = 0
@@ -321,6 +445,9 @@ def git_pending_paths(root: Path, subdir: str) -> list[tuple[str, str]]:
         if len(record) < 4:
             continue
         status, path = record[:2], record[3:]
+        # With an empty prefix the path passes through as-is.
+        if prefix and path.startswith(f"{prefix}/"):
+            path = path[len(prefix) + 1 :]
         # A rename or copy record is `XY <dest>` with the origin path as the
         # *next* NUL field (`-z` reverses v1's `orig -> dest` and drops the
         # arrow, deleting the ambiguity a path containing " -> " used to
@@ -328,15 +455,13 @@ def git_pending_paths(root: Path, subdir: str) -> list[tuple[str, str]]:
         # a skipped record leaves its origin to be misread as the next record.
         if "R" in status or "C" in status:
             index += 1
-        # Nothing here to hold to a contract: an unmerged entry is a merge in
-        # motion, and a "D" in either column means the working tree has no file
-        # at that path for a gate to open.
+        # An unmerged entry is a merge in motion, and a "D" in either column
+        # means the working tree has no file at that path for a gate to open.
         if status in GIT_UNMERGED or "D" in status:
             continue
-        # The payload is the literal path: `-z` performs no quoting or
-        # backslash-escaping, and git always emits `/` separators - so a
-        # backslash or `"` here is a genuine filename character, and the old
-        # unquote/normalise steps would be corruption, not cleanup (issue #6).
+
+        # A `\`|`"` here is a genuine filename character and unquote/normalise
+        # steps would be corruption, not cleanup.
         paths.append((status, path))
     return paths
 

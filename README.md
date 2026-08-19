@@ -208,7 +208,7 @@ Who this project is, plus the hierarchy itself. Read once, at the start of every
   - `context-hierarchy` (Layer 0)
   - `context-hierarchy-role` (Global identity)
   - `immutable` (false)
-  - `maximum-context-tokens` (900)
+  - `recommended-context-tokens` (900)
 
 ### Layer 1
 
@@ -222,7 +222,7 @@ Matches the work to a pipeline and stops. Its whole job is to send you one level
   - `context-hierarchy` (Layer 1)
   - `context-hierarchy-role` (Workspace routing)
   - `immutable` (false)
-  - `maximum-context-tokens` (300)
+  - `recommended-context-tokens` (300)
 
 ### Layer 2
 
@@ -238,13 +238,13 @@ its stage.
   - `context-hierarchy` (Layer 2)
   - `context-hierarchy-role` (Stage routing)
   - `immutable` (false)
-  - `maximum-context-tokens` (500)
+  - `recommended-context-tokens` (500)
 
 ### Layer 3
 
-Two roles share this layer. Reference material is the factory configuration and is
-`immutable: true`, budgeted at 2500 tokens. Specs are `immutable: false` and unbudgeted - the
-pipeline exists to amend them and a spec is as long as the behaviour it declares.
+One role, two immutability postures. The factory configuration is `immutable: true` and
+recommended at 2500 tokens. Specs are `immutable: false` and unbudgeted - the pipeline exists to
+amend them and a spec is as long as the behaviour it declares.
 
 - Category: Content
 - Role: Reference material
@@ -513,6 +513,11 @@ in unrelated repositories that happen to own a `specs/` folder.
   - *Effect*: advise
   - *What it protects*: Cannot block; feeds context back on an invalid `status`, an unresolvable
     spec path, a spec in both list fields, or a missing Layer 4 key
+- **`gate_spec_frontmatter`**
+  - *Fires on*: after a spec write
+  - *Effect*: advise
+  - *What it protects*: Cannot block; feeds context back when a spec is missing its frontmatter
+    block or a Layer 3 key. The block is what makes the spec routable by layer
 - **`gate_spec_coverage`**
   - *Fires on*: session stop
   - *Effect*: block
@@ -621,7 +626,6 @@ Tests can be run with the Justfile recipe - `just test` or manually, with the fo
 ```sh
 uv run --no-project python -m unittest discover -s scripts/tests -t scripts -v
 uv run --no-project python scripts/tests/check_paths.py
-uv run --no-project --script scripts/tests/check_budgets.py
 uv run --no-project --script scripts/tests/check_manifest.py
 ```
 
@@ -632,8 +636,6 @@ uv run --no-project --script scripts/tests/check_manifest.py
 - **`check_paths.py`**: Every backtick-quoted path a scaffolded tree cites in prose resolves.
   Deliberate forward references are allowlisted with their reason, so an unexplained addition
   is the smell
-- **`check_budgets.py`**: No file exceeds the `maximum-context-tokens` its own frontmatter
-  declares and warns at 90%
 - **`check_manifest.py`**: The version agrees everywhere it is stated - `plugin.json` and the
   CHANGELOG release heading - and the marketplace entry declares none, because a manifest
   version silently masks it. The README restates no version by design; the CHANGELOG and the
@@ -671,3 +673,18 @@ Layer 1 router with the question that selects it.
 All six are user-invoked only - they carry `disable-model-invocation: true`, so the model cannot
 enter a stage on its own initiative. Entering a pipeline is your decision, every time. Where the
 slug argument is optional, an unambiguous open plan is used and you are asked when it is ambiguous.
+
+## Attribution
+
+### `JarvusInnovations/specops` | `IBM/iac-spec-kit` | `github/spec-kit`
+
+I looked at existing repos focused on spec-driven development (SSD), which were useful in
+determining what functionality and aspects are best to combine with ICM.
+
+- **Repository**:
+  - [JarvusInnovations/specops](https://github.com/JarvusInnovations/specops)
+    - **License**: N/A
+  - [IBM/iac-spec-kit](https://github.com/IBM/iac-spec-kit)
+    - **License**: MIT License - Copyright (c) 2025 Copyright International Business Machines
+  - [IBM/iac-spec-kit](https://github.com/github/spec-kit)
+    - **License**: MIT License - Copyright (c) 2026 Copyright GitHub, Inc

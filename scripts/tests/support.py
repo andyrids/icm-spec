@@ -1,10 +1,5 @@
 """Shared fixtures and drivers for the ICM gate test suite.
 
-Three layers use this module: pure-function tests need nothing here,
-in-process tests drive a gate's `main()` through `call_gate_main` inside
-a `TempDirCase` tempdir, and the process-contract tests spawn a real
-interpreter through `run_gate_subprocess`.
-
 Run: python -m unittest discover -s scripts/tests -t scripts
 
 License:
@@ -25,13 +20,6 @@ from unittest import mock
 
 SCRIPTS = Path(__file__).resolve().parent.parent
 
-# Full git isolation for every fixture, in-process gate call and spawned
-# script. A contributor's global config is a fixture ingredient nobody
-# ordered: `status.renames=false` would silently downgrade every R row to
-# D+A and test nothing, `core.autocrlf` rewrites the bytes under test,
-# `commit.gpgsign` can hang a commit on a missing key. `GIT_CONFIG_GLOBAL`
-# pointed at the null device suppresses global and system config alike;
-# the `GIT_CONFIG_*` triplets re-add only what the fixtures rely on.
 _GIT_ISOLATION = {
     "GIT_CONFIG_GLOBAL": os.devnull,
     "GIT_CONFIG_SYSTEM": os.devnull,
@@ -49,6 +37,10 @@ _GIT_ISOLATION = {
     "GIT_CONFIG_KEY_3": "status.renames",
     "GIT_CONFIG_VALUE_3": "true",
 }
+"""Git isolation for fixtures, in-process gate calls & spawned scripts.
+
+NOTE: Prevents a global config from polluting the test suite.
+"""
 
 PLAN_TEMPLATE = """---
 context-hierarchy: Layer 4
@@ -228,6 +220,25 @@ def write_bytes(root: Path, rel: str, data: bytes) -> None:
     path.write_bytes(data)
 
 
+def utf8_stdin(text: str) -> io.TextIOWrapper:
+    """A stdin stand-in whose `.buffer` holds `text` as UTF-8 bytes.
+
+    NOTE: `read_event` reads `sys.stdin.buffer` (issue #14), which a bare
+    `io.StringIO` does not have - every in-process stdin patch goes through
+    here so the stand-in stays shaped like a real text stream (`.read()`
+    still works) while exposing the byte layer the production code reads.
+
+    Args:
+        text: The stdin payload, encoded to UTF-8 on the way in.
+
+    Returns:
+        A text wrapper over a `BytesIO` of the UTF-8-encoded payload.
+    """
+    return io.TextIOWrapper(
+        io.BytesIO(text.encode("utf-8")), encoding="utf-8"
+    )
+
+
 def call_gate_main(
     module: ModuleType, event: dict
 ) -> tuple[int, str, str]:
@@ -247,7 +258,7 @@ def call_gate_main(
         `(returncode, stdout, stderr)` exactly as a hook runner sees them.
     """
     with (
-        mock.patch("sys.stdin", io.StringIO(json.dumps(event))),
+        mock.patch("sys.stdin", utf8_stdin(json.dumps(event))),
         contextlib.redirect_stdout(io.StringIO()) as out,
         contextlib.redirect_stderr(io.StringIO()) as err,
     ):
@@ -272,6 +283,36 @@ def run_gate_subprocess(
         input=json.dumps(event),
         capture_output=True,
         text=True,
+        timeout=30,
+    )
+
+
+def run_gate_subprocess_bytes(
+    script: str, stdin: bytes, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess:
+    """Spawn one gate script with raw bytes on stdin, no text layer.
+
+    NOTE: `run_gate_subprocess` serialises through `text=True`, which
+    encodes stdin in the parent's locale - exactly the layer issue #14
+    removes from the gates. The stream-encoding regression tests must
+    control the bytes on the wire and read the bytes coming back, so this
+    variant passes `stdin` verbatim and captures bytes, with `env`
+    overridable to pin the child's would-be locale streams (e.g.
+    `PYTHONIOENCODING`) to the codepage the defect needs.
+
+    Args:
+        script: The filename under `scripts/`.
+        stdin: The literal bytes to feed on stdin, no encoding step.
+        env: The child environment, or None to inherit the parent's.
+
+    Returns:
+        The completed process, with byte output captured.
+    """
+    return subprocess.run(
+        [sys.executable, str(SCRIPTS / script)],
+        input=stdin,
+        capture_output=True,
+        env=env,
         timeout=30,
     )
 

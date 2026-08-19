@@ -2,7 +2,7 @@
 context-hierarchy: Layer 3
 context-hierarchy-role: Reference material
 immutable: true
-maximum-context-tokens: 2500
+recommended-context-tokens: 2500
 tags: []
 ---
 

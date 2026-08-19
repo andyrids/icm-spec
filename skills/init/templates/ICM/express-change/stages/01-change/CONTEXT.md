@@ -2,7 +2,7 @@
 context-hierarchy: Layer 2
 context-hierarchy-role: Stage contract
 immutable: false
-maximum-context-tokens: 500
+recommended-context-tokens: 500
 ---
 
 # Stage 01 - change

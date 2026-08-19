@@ -59,20 +59,24 @@ class SectionTests(unittest.TestCase):
     )
 
     def test_body_runs_to_the_next_h2(self) -> None:
+        """Check the section body is everything after the header -> H2."""
+
         self.assertEqual(
             gate_closeout.section(self.TEXT, "Validation"),
             "- [x] a\n- [ ] b",
         )
 
     def test_last_section_runs_to_end_of_file(self) -> None:
+        """Check the last section is everything after the header -> EOF."""
+
         self.assertEqual(
             gate_closeout.section(self.TEXT, "Notes"),
             "Box b untestable offline.",
         )
 
     def test_missing_section_is_empty(self) -> None:
-        # An empty Notes section and an absent one must read the same:
-        # both mean no reason was recorded.
+        """Check that a missing section returns an empty string."""
+
         self.assertEqual(gate_closeout.section(self.TEXT, "Scope"), "")
 
 
@@ -80,6 +84,8 @@ class OutputPathRegexTests(unittest.TestCase):
     """`OUTPUT_RE` and `NAME_RE` - the naming gate's whole verdict."""
 
     def test_output_re_matches_stage_output_paths_only(self) -> None:
+        """Check that the regex matches only the expected output paths."""
+
         rows = {
             "ICM/process-plan/stages/01-specification/output/x.md": True,
             "ICM/express-change/stages/02-implementation/output/a.md": True,
@@ -92,13 +98,15 @@ class OutputPathRegexTests(unittest.TestCase):
                 match = gate_output_naming.OUTPUT_RE.match(path)
                 self.assertIs(match is not None, expected)
 
-    def test_output_re_captures_stage_number_and_name(self) -> None:
+    def test_output_re_captures_workspace_stage_number_and_name(self) -> None:
+        """Check the regex captures the workspace, stage number & filename."""
+
         match = gate_output_naming.OUTPUT_RE.match(
             "ICM/process-plan/stages/01-specification/output/a-spec.md"
         )
         self.assertIsNotNone(match)
         assert match is not None
-        self.assertEqual(match.groups(), ("01", "a-spec.md"))
+        self.assertEqual(match.groups(), ("process-plan", "01", "a-spec.md"))
 
     def test_name_re_enforces_kebab_slug_and_suffix(self) -> None:
         rows = {
@@ -124,6 +132,8 @@ class OutputPathRegexTests(unittest.TestCase):
 
 class PluginVersionTests(unittest.TestCase):
     def test_reads_the_authoritative_manifest_field(self) -> None:
+        """Check the plugin version is read from the manifest file."""
+
         manifest = SCRIPTS.parent / ".claude-plugin" / "plugin.json"
         expected = json.loads(manifest.read_text(encoding="utf-8"))[
             "version"

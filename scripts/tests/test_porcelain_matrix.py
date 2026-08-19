@@ -43,6 +43,8 @@ class SpecCoveragePorcelainMatrixTests(TempDirCase):
         )
 
     def test_untracked_blocks(self) -> None:
+        """Check the gate blocks on an untracked spec."""
+
         # ?? - restated from the six-step flow so the matrix reads as one.
         repo = case_repo(self.root, "untracked")
         write_spec(repo, "orphan")
@@ -54,6 +56,8 @@ class SpecCoveragePorcelainMatrixTests(TempDirCase):
         self.assertIn("orphan.md", err)
 
     def test_staged_blocks(self) -> None:
+        """Check the gate blocks on a staged spec."""
+
         repo = case_repo(self.root, "staged")
         write_spec(repo, "staged")
         git(repo, "add", "-A")
@@ -65,9 +69,8 @@ class SpecCoveragePorcelainMatrixTests(TempDirCase):
         self.assertIn("staged.md", err)
 
     def test_staged_then_edited_blocks(self) -> None:
-        # Deliberately a different length after staging: an
-        # identical-size rewrite inside one timestamp is the one shape
-        # git can call racily clean.
+        """Check the gate blocks on a staged spec that is then edited."""
+
         repo = case_repo(self.root, "staged-then-edited")
         write_spec(repo, "edited", "# spec")
         git(repo, "add", "-A")
@@ -80,6 +83,8 @@ class SpecCoveragePorcelainMatrixTests(TempDirCase):
         self.assertIn("edited.md", err)
 
     def test_renamed_blocks(self) -> None:
+        """Check the gate blocks on a renamed spec."""
+
         repo = case_repo(self.root, "renamed")
         write_spec(repo, "old")
         git_commit_all(repo)
@@ -97,9 +102,8 @@ class SpecCoveragePorcelainMatrixTests(TempDirCase):
         self.assertNotIn(" -> ", err)
 
     def test_renamed_past_covered_spec_blocks(self) -> None:
-        # Decision 3 made executable: coverage is keyed on the path, so
-        # a rename moves the key and the stale specs: entry must be
-        # edited, not doubled.
+        """Check the gate blocks on a renamed spec that is already covered."""
+
         repo = case_repo(self.root, "renamed-covered")
         write_spec(repo, "old")
         write_plan(repo, "owner", specs="\n  - specs/commands/old.md")
@@ -115,12 +119,8 @@ class SpecCoveragePorcelainMatrixTests(TempDirCase):
         self.assertIn("edit the owning plan's existing entry", err)
 
     def test_inbound_rename_blocks(self) -> None:
-        # A guard, not a regression: pathspec limiting splits the
-        # inbound rename, so the gate sees a bare "A " at the
-        # destination (measured against git 2.55.0) and even the pre-fix
-        # code blocked it. The row pins that a fix keyed on rename
-        # handling does not lose the case where git reports no rename at
-        # all.
+        """Check the gate blocks on an inbound rename."""
+
         repo = case_repo(self.root, "renamed-inbound")
         (repo / "docs").mkdir()
         (repo / "docs" / "a.md").write_text("# doc\n", encoding="utf-8")
@@ -136,9 +136,8 @@ class SpecCoveragePorcelainMatrixTests(TempDirCase):
         self.assertNotIn(" -> ", err)
 
     def test_modified_never_blocks(self) -> None:
-        # The ripple carve-out: a merely modified committed spec never
-        # blocks, whatever mix of index and worktree the modification
-        # sits in.
+        """Check the gate does not block on a modified spec."""
+
         repo = case_repo(self.root, "modified")
         write_spec(repo, "settled")
         git_commit_all(repo)
@@ -151,6 +150,8 @@ class SpecCoveragePorcelainMatrixTests(TempDirCase):
         self.assertEqual(err, "")
 
     def test_staged_modification_never_blocks(self) -> None:
+        """Check the gate does not block on a staged modification."""
+
         repo = case_repo(self.root, "modified-staged")
         write_spec(repo, "settled")
         git_commit_all(repo)
@@ -164,6 +165,8 @@ class SpecCoveragePorcelainMatrixTests(TempDirCase):
         self.assertEqual(err, "")
 
     def test_staged_then_edited_modification_never_blocks(self) -> None:
+        """Check the gate does not block on an edited, staged modification."""
+
         repo = case_repo(self.root, "modified-twice")
         write_spec(repo, "settled")
         git_commit_all(repo)
@@ -178,11 +181,8 @@ class SpecCoveragePorcelainMatrixTests(TempDirCase):
         self.assertEqual(err, "")
 
     def test_conflicted_never_blocks(self) -> None:
-        # Decision 2 made a tested decision rather than a comment: a
-        # conflicted path mid-merge is not an arrival, and proves the fix
-        # does not buy its blocking rows by blocking everything. Never
-        # name the first branch - `init.defaultBranch` varies - so return
-        # with `checkout -`.
+        """Check the gate does not block on a conflicted spec."""
+
         repo = case_repo(self.root, "conflicted")
         (repo / "specs").mkdir(parents=True, exist_ok=True)
         (repo / "specs" / "README.md").write_text(
@@ -207,7 +207,7 @@ class SpecCoveragePorcelainMatrixTests(TempDirCase):
 
 
 class ClosePlanRenameTests(TempDirCase):
-    """A `git mv`d plan must still be judged at its destination (#1)."""
+    """check a moved plan is judged at its destination."""
 
     scaffold_icm = False  # each row builds its own repo via case_repo
     scaffold_git = False
@@ -218,9 +218,8 @@ class ClosePlanRenameTests(TempDirCase):
         )
 
     def test_control_untracked_done_plan_blocks(self) -> None:
-        # Control: the same plan content blocks when it arrives
-        # untracked, so the rename row below can differ in verdict for
-        # one reason only - the parse.
+        """Check the gate blocks on an untracked done plan."""
+
         repo = case_repo(self.root, "control")
         write_plan(repo, "renamed-plan", status="done", pr="")
         self.assertEqual(
@@ -231,6 +230,8 @@ class ClosePlanRenameTests(TempDirCase):
         self.assertIn("pr:", err)
 
     def test_renamed_done_plan_blocks(self) -> None:
+        """Check the gate blocks on a renamed done plan."""
+
         repo = case_repo(self.root, "renamed")
         write_plan(repo, "old-plan", status="in-progress", pr="")
         git_commit_all(repo)
@@ -252,18 +253,7 @@ class ClosePlanRenameTests(TempDirCase):
 
 
 class NonAsciiPathTests(TempDirCase):
-    """A non-ASCII path must reach the gates as the file on disk (#6).
-
-    Newline porcelain C-quotes any non-plain path, and the old parse read
-    the surviving octal escapes as directories: `specs/café.md` became
-    `specs/caf/303/251.md`, deadlocking the coverage gate and letting the
-    closeout gate fail open on a FileNotFoundError. Each row asserts the
-    quoted line via the `porcelain` oracle FIRST - proof that git still
-    quotes and the gate stopped caring, not that the fixture stopped
-    triggering. Filenames carrying `"`, backslash or control characters
-    cannot exist on NTFS, so those trigger classes live only in the mocked
-    rows of `test_common.py`.
-    """
+    """A non-ASCII path must reach the gates as the file on disk."""
 
     scaffold_icm = False  # each row builds its own repo via case_repo
     scaffold_git = False
@@ -286,6 +276,8 @@ class NonAsciiPathTests(TempDirCase):
     def test_uncovered_nonascii_spec_blocks_naming_the_real_path(
         self,
     ) -> None:
+        """Check the gate blocks uncovered specs with incorrect names."""
+
         repo = case_repo(self.root, "nonascii-uncovered")
         write_spec(repo, "café")
         self.assertEqual(porcelain(repo, "specs"), [self.QUOTED_SPEC])
@@ -297,9 +289,8 @@ class NonAsciiPathTests(TempDirCase):
         self.assertNotIn("/303/", err)
 
     def test_covered_nonascii_spec_passes(self) -> None:
-        # Claim A of #6 made executable: before the fix no frontmatter
-        # value could satisfy the gate, because the plan names the real
-        # path and the gate compared against the mangled one.
+        """Check the gate passes covered specs with incorrect names."""
+
         repo = case_repo(self.root, "nonascii-covered")
         write_spec(repo, "café")
         write_plan(
@@ -311,6 +302,8 @@ class NonAsciiPathTests(TempDirCase):
         self.assertEqual(err, "")
 
     def test_done_nonascii_plan_with_empty_pr_blocks(self) -> None:
+        """Check gate blocks done plans with incorrect names & empty PR."""
+
         # Claim B of #6: the mangled path raised FileNotFoundError inside
         # gate_closeout's `except OSError`, so a half-closed plan slid
         # through. With the real path the plan opens and is judged.

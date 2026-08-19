@@ -65,6 +65,11 @@
             "type": "command",
             "if": "Edit(plans/**)",
             "command": "uv run --no-project --script \"${CLAUDE_PLUGIN_ROOT}/scripts/gate_plan_frontmatter.py\""
+          },
+          {
+            "type": "command",
+            "if": "Edit(specs/**)",
+            "command": "uv run --no-project --script \"${CLAUDE_PLUGIN_ROOT}/scripts/gate_spec_frontmatter.py\""
           }
         ]
       },
@@ -75,6 +80,11 @@
             "type": "command",
             "if": "Write(plans/**)",
             "command": "uv run --no-project --script \"${CLAUDE_PLUGIN_ROOT}/scripts/gate_plan_frontmatter.py\""
+          },
+          {
+            "type": "command",
+            "if": "Write(specs/**)",
+            "command": "uv run --no-project --script \"${CLAUDE_PLUGIN_ROOT}/scripts/gate_spec_frontmatter.py\""
           }
         ]
       }

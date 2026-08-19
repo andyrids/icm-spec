@@ -13,11 +13,14 @@ License:
     SPDX-License-Identifier: Apache-2.0
 """
 
+import json
+import os
 import unittest
 
 from .support import (
     TempDirCase,
     run_gate_subprocess,
+    run_gate_subprocess_bytes,
     specific_output,
     write_plan,
 )
@@ -27,6 +30,8 @@ class ProcessContractTests(TempDirCase):
     scaffold_git = True  # the two Stop gates read `git status`
 
     def test_gate_implement(self) -> None:
+        """Check the gate_implement script is deployed and callable."""
+
         proc = run_gate_subprocess(
             "gate_implement.py",
             {"cwd": str(self.root), "prompt": "/icm:implement x"},
@@ -35,6 +40,8 @@ class ProcessContractTests(TempDirCase):
         self.assertIn("plan", proc.stderr)
 
     def test_gate_clarification(self) -> None:
+        """Check the gate_clarification script is deployed and callable."""
+
         outdir = (
             self.root
             / "ICM"
@@ -54,6 +61,8 @@ class ProcessContractTests(TempDirCase):
         self.assertIn("y?", proc.stderr)
 
     def test_gate_spec_edit(self) -> None:
+        """Check the gate_spec_edit script is deployed and callable."""
+
         proc = run_gate_subprocess(
             "gate_spec_edit.py",
             {
@@ -71,6 +80,8 @@ class ProcessContractTests(TempDirCase):
         )
 
     def test_gate_output_naming(self) -> None:
+        """Check the gate_output_naming script is deployed and callable."""
+
         stage01 = (
             self.root
             / "ICM"
@@ -92,6 +103,8 @@ class ProcessContractTests(TempDirCase):
         )
 
     def test_gate_plan_frontmatter(self) -> None:
+        """Check the gate_plan_frontmatter script is deployed and callable."""
+
         write_plan(self.root, "bogus", status="bogus")
         proc = run_gate_subprocess(
             "gate_plan_frontmatter.py",
@@ -107,7 +120,33 @@ class ProcessContractTests(TempDirCase):
             "bogus", specific_output(proc).get("additionalContext", "")
         )
 
+    def test_gate_spec_frontmatter(self) -> None:
+        """Check the gate_spec_frontmatter script is deployed and callable."""
+
+        (self.root / "specs" / "commands").mkdir(parents=True)
+        (self.root / "specs" / "commands" / "find.md").write_text(
+            "# Command: acme find", encoding="utf-8"
+        )
+        proc = run_gate_subprocess(
+            "gate_spec_frontmatter.py",
+            {
+                "cwd": str(self.root),
+                "tool_input": {
+                    "file_path": str(
+                        self.root / "specs" / "commands" / "find.md"
+                    )
+                },
+            },
+        )
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn(
+            "no YAML frontmatter block",
+            specific_output(proc).get("additionalContext", ""),
+        )
+
     def test_gate_spec_coverage(self) -> None:
+        """Check the gate_spec_coverage script is deployed and callable."""
+
         (self.root / "specs" / "commands").mkdir(parents=True)
         (self.root / "specs" / "commands" / "orphan.md").write_text(
             "# spec", encoding="utf-8"
@@ -120,6 +159,8 @@ class ProcessContractTests(TempDirCase):
         self.assertIn("orphan.md", proc.stderr)
 
     def test_gate_closeout(self) -> None:
+        """Check the gate_closeout script is deployed and callable."""
+
         write_plan(self.root, "closing", status="done", pr="")
         proc = run_gate_subprocess(
             "gate_closeout.py",
@@ -129,6 +170,8 @@ class ProcessContractTests(TempDirCase):
         self.assertIn("pr:", proc.stderr)
 
     def test_preflight(self) -> None:
+        """Check the preflight script is deployed and callable."""
+
         proc = run_gate_subprocess(
             "preflight.py", {"cwd": str(self.root), "source": "startup"}
         )
@@ -136,6 +179,61 @@ class ProcessContractTests(TempDirCase):
         out = specific_output(proc)
         self.assertEqual(out.get("hookEventName"), "SessionStart")
         self.assertIn("gates armed", out.get("additionalContext", ""))
+
+
+class StreamEncodingContractTests(TempDirCase):
+    """Issue #14: the event and message channels are UTF-8 byte contracts.
+
+    Only a real spawn exercises real stream encoding - the in-process
+    layer's patched streams cannot. Each test pins the child's would-be
+    locale streams to a deliberately hostile codepage via
+    `PYTHONIOENCODING`, so the rows fail on the pre-fix code on every
+    platform rather than only under a mismatched OS codepage.
+    """
+
+    def test_stdin_decodes_raw_utf8_despite_the_codepage(self) -> None:
+        """Check the gate_spec_edit script reads UTF-8 bytes from stdin."""
+
+        file_path = self.root / "specs" / "commands" / "naïve-café.md"
+        event = {
+            "cwd": str(self.root),
+            "tool_input": {"file_path": str(file_path)},
+        }
+        proc = run_gate_subprocess_bytes(
+            "gate_spec_edit.py",
+            json.dumps(event, ensure_ascii=False).encode("utf-8"),
+            env={**os.environ, "PYTHONIOENCODING": "cp1252"},
+        )
+        self.assertEqual(proc.returncode, 0)
+        out = specific_output(proc.stdout.decode("utf-8"))
+        self.assertEqual(out.get("permissionDecision"), "ask")
+        self.assertIn(
+            "specs/commands/naïve-café.md",
+            out.get("permissionDecisionReason", ""),
+        )
+
+    def test_stderr_carries_utf8_despite_the_codepage(self) -> None:
+        """Check the gate_clarification script writes UTF-8 bytes to stderr."""
+
+        outdir = (
+            self.root
+            / "ICM"
+            / "process-plan"
+            / "stages"
+            / "01-specification"
+            / "output"
+        )
+        (outdir / "x-spec.md").write_text(
+            "[NEEDS CLARIFICATION: café?]", encoding="utf-8"
+        )
+        event = {"cwd": str(self.root), "prompt": "/icm:implement x"}
+        proc = run_gate_subprocess_bytes(
+            "gate_clarification.py",
+            json.dumps(event).encode("utf-8"),
+            env={**os.environ, "PYTHONIOENCODING": "ascii"},
+        )
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("café?", proc.stderr.decode("utf-8"))
 
 
 if __name__ == "__main__":

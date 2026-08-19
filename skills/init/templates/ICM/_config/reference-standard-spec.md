@@ -2,7 +2,7 @@
 context-hierarchy: Layer 3
 context-hierarchy-role: Reference material
 immutable: true
-maximum-context-tokens: 2500
+recommended-context-tokens: 2500
 tags: [spec, SDD]
 ---
 
@@ -107,6 +107,9 @@ principles this spec owns. Omit either subsection if empty.
 
 ## Templates
 
+Both spec templates open with the frontmatter block contracted in `specs/README.md`; the principle
+entry is a section within `specs/principles.md` rather than a file, and carries none.
+
 ### Interface spec
 
 One file per unit of public surface - a CLI verb, an API endpoint, an MCP tool. The H1 keeps the
@@ -116,6 +119,13 @@ formatting - are toolchain conventions declared once in `reference-toolchain-*.m
 states what the caller observes, and the toolchain reference names the mechanism carrying it.
 
 ```markdown
+---
+context-hierarchy: Layer 3
+context-hierarchy-role: Reference material
+immutable: false
+tags: [keyword, ...]
+---
+
 # Command: <cli> <verb>
 
 ## Invocation / inputs
@@ -143,6 +153,13 @@ Adjacent behaviour this spec deliberately excludes, and where each item went.
 ### Behavior spec
 
 ```markdown
+---
+context-hierarchy: Layer 3
+context-hierarchy-role: Reference material
+immutable: false
+tags: [keyword, ...]
+---
+
 # Behavior: <name>
 
 ## Rule
