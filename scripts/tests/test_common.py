@@ -21,7 +21,7 @@ from unittest import mock
 
 import _common
 
-from .support import TempDirCase, make_icm_tree, write_bytes
+from .support import TempDirCase, make_icm_tree, utf8_stdin, write_bytes
 
 
 def _status_proc(stdout: bytes, returncode: int = 0) -> mock.Mock:
@@ -37,17 +37,37 @@ def _status_proc(stdout: bytes, returncode: int = 0) -> mock.Mock:
 class ReadEventTests(unittest.TestCase):
     def test_parses_a_json_object(self) -> None:
         event = {"cwd": "/x", "stop_hook_active": False}
-        with mock.patch("sys.stdin", io.StringIO(json.dumps(event))):
+        with mock.patch("sys.stdin", utf8_stdin(json.dumps(event))):
             self.assertEqual(_common.read_event(), event)
 
     def test_invalid_json_degrades_to_empty(self) -> None:
         # Exit 2 is reserved for hard blocks; a malformed event must never
         # crash a gate, so the parse failure degrades to {}.
-        with mock.patch("sys.stdin", io.StringIO("not json")):
+        with mock.patch("sys.stdin", utf8_stdin("not json")):
             self.assertEqual(_common.read_event(), {})
 
     def test_non_dict_json_degrades_to_empty(self) -> None:
-        with mock.patch("sys.stdin", io.StringIO("[1, 2]")):
+        with mock.patch("sys.stdin", utf8_stdin("[1, 2]")):
+            self.assertEqual(_common.read_event(), {})
+
+    def test_reads_the_byte_layer_as_utf8(self) -> None:
+        # `read_event` decodes `sys.stdin.buffer` as UTF-8 by hand
+        # (issue #14) - a text-mode `json.load(sys.stdin)` would take the
+        # wrapper's own (here deliberately wrong) encoding instead.
+        payload = json.dumps({"cwd": "/tmp/naïve-café"}, ensure_ascii=False)
+        stand_in = io.TextIOWrapper(
+            io.BytesIO(payload.encode("utf-8")), encoding="latin-1"
+        )
+        with mock.patch("sys.stdin", stand_in):
+            self.assertEqual(
+                _common.read_event(), {"cwd": "/tmp/naïve-café"}
+            )
+
+    def test_undecodable_bytes_degrade_without_raising(self) -> None:
+        # `errors="replace"` turns a stray non-UTF-8 byte into U+FFFD; the
+        # result is not valid JSON here, so the parse arm degrades to {}.
+        stand_in = io.TextIOWrapper(io.BytesIO(b"\xff\xfe"), encoding="utf-8")
+        with mock.patch("sys.stdin", stand_in):
             self.assertEqual(_common.read_event(), {})
 
 

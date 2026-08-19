@@ -13,11 +13,14 @@ License:
     SPDX-License-Identifier: Apache-2.0
 """
 
+import json
+import os
 import unittest
 
 from .support import (
     TempDirCase,
     run_gate_subprocess,
+    run_gate_subprocess_bytes,
     specific_output,
     write_plan,
 )
@@ -158,6 +161,65 @@ class ProcessContractTests(TempDirCase):
         out = specific_output(proc)
         self.assertEqual(out.get("hookEventName"), "SessionStart")
         self.assertIn("gates armed", out.get("additionalContext", ""))
+
+
+class StreamEncodingContractTests(TempDirCase):
+    """Issue #14: the event and message channels are UTF-8 byte contracts.
+
+    Only a real spawn exercises real stream encoding - the in-process
+    layer's patched streams cannot. Each test pins the child's would-be
+    locale streams to a deliberately hostile codepage via
+    `PYTHONIOENCODING`, so the rows fail on the pre-fix code on every
+    platform rather than only under a mismatched OS codepage.
+    """
+
+    def test_stdin_decodes_raw_utf8_despite_the_codepage(self) -> None:
+        # Feed raw UTF-8 non-ASCII bytes exactly as the hook host does
+        # (`ensure_ascii=False`, so the wire really carries them). Under the
+        # old text-mode `json.load`, cp1252 decodes them into mojibake
+        # without raising and the deny reason names a path that exists
+        # nowhere; `read_event` now reads `sys.stdin.buffer` as UTF-8.
+        file_path = self.root / "specs" / "commands" / "naïve-café.md"
+        event = {
+            "cwd": str(self.root),
+            "tool_input": {"file_path": str(file_path)},
+        }
+        proc = run_gate_subprocess_bytes(
+            "gate_spec_edit.py",
+            json.dumps(event, ensure_ascii=False).encode("utf-8"),
+            env={**os.environ, "PYTHONIOENCODING": "cp1252"},
+        )
+        self.assertEqual(proc.returncode, 0)
+        out = specific_output(proc.stdout.decode("utf-8"))
+        self.assertEqual(out.get("permissionDecision"), "ask")
+        self.assertIn(
+            "specs/commands/naïve-café.md",
+            out.get("permissionDecisionReason", ""),
+        )
+
+    def test_stderr_carries_utf8_despite_the_codepage(self) -> None:
+        # An ASCII-pinned stderr made a non-ASCII deny message a
+        # `UnicodeEncodeError` (a traceback and the wrong exit code) before
+        # `_common` reconfigured the stream to UTF-8 at import time.
+        outdir = (
+            self.root
+            / "ICM"
+            / "process-plan"
+            / "stages"
+            / "01-specification"
+            / "output"
+        )
+        (outdir / "x-spec.md").write_text(
+            "[NEEDS CLARIFICATION: café?]", encoding="utf-8"
+        )
+        event = {"cwd": str(self.root), "prompt": "/icm:implement x"}
+        proc = run_gate_subprocess_bytes(
+            "gate_clarification.py",
+            json.dumps(event).encode("utf-8"),
+            env={**os.environ, "PYTHONIOENCODING": "ascii"},
+        )
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("café?", proc.stderr.decode("utf-8"))
 
 
 if __name__ == "__main__":

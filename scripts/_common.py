@@ -52,6 +52,21 @@ SLUG_SUFFIX_BY_STAGE = {
 }
 """Stage slug suffixes for the four Layer 4 stages."""
 
+# The event and message channels are byte contracts, not locale text
+# (issue #14). Hook events arrive as raw UTF-8 JSON, and under a mismatched
+# OS codepage Python's default text-mode stdin decodes them into mojibake
+# without raising - path resolution then silently fails and every gate
+# degrades to exit 0 with no real check. `read_event` therefore reads
+# `sys.stdin.buffer` and decodes UTF-8 by hand. Symmetrically, stderr deny
+# messages naming a non-ASCII path must survive the trip back, so stderr is
+# pinned to UTF-8 here at import time - every gate that writes stderr imports
+# this module first, which `emit()` (stdout-only) could never guarantee.
+# `backslashreplace` keeps an unencodable byte visible rather than fatal, and
+# the `hasattr` guard keeps a stream with no `reconfigure` (a replaced or
+# absent stderr) a no-op rather than a wedged session.
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
+
 GIT_UNMERGED = frozenset({"DD", "AU", "UD", "UA", "DU", "AA", "UU"})
 """Porcelain v1 unmerged git status codes.
 
@@ -68,11 +83,20 @@ the same path presents as "A ", "AM" or "M " and is judged on the next Stop.
 def read_event() -> dict[str, Any]:
     """Parse hook event JSON from STDIN.
 
+    NOTE: Reads `sys.stdin.buffer` and decodes UTF-8 by hand (issue #14):
+    `json.load(sys.stdin)` decoded through the OS locale, which under a
+    mismatched codepage produces wrong characters without ever raising, so
+    a non-ASCII `cwd` or `file_path` silently stopped resolving and the
+    gate degraded to exit 0. `errors="replace"` means the
+    `UnicodeDecodeError` arm below can no longer fire in practice; it stays
+    because it costs nothing and preserves the function's contract.
+
     Returns:
         The parsed event, or an empty dict on failure.
     """
     try:
-        data = json.load(sys.stdin)
+        raw = sys.stdin.buffer.read()
+        data = json.loads(raw.decode("utf-8", errors="replace"))
     except (json.JSONDecodeError, UnicodeDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
