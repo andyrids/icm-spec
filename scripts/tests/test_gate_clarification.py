@@ -8,6 +8,8 @@ License:
 
 import shutil
 import unittest
+from pathlib import Path
+from unittest import mock
 
 import gate_clarification
 
@@ -75,6 +77,25 @@ class GateClarificationTests(TempDirCase):
             encoding="utf-8",
         )
         rc, _out, err = call_gate_main(gate_clarification, self.event)
+        self.assertEqual(rc, 2)
+        self.assertIn("which token scheme", err)
+
+    def test_an_embedded_nul_path_does_not_stop_the_others(self) -> None:
+        # The residue of issue #8 (issue #17): a NUL in a scratch path
+        # only raises inside `read_text`, as a `ValueError` that is NOT a
+        # `UnicodeDecodeError` - so the guard narrowed to
+        # `(OSError, UnicodeDecodeError)` still aborted the scan. No
+        # filesystem can hold a NUL filename, so the glob is patched to
+        # inject one; the `read_text` that raises is real, and the open
+        # question in the file beside it must still surface.
+        marker = self.outdir / "my-feature-spec.md"
+        marker.write_text(
+            "Auth is [NEEDS CLARIFICATION: which token scheme?] for now.\n",
+            encoding="utf-8",
+        )
+        nul = self.outdir / "aa-bad\x00.md"
+        with mock.patch.object(Path, "glob", return_value=[nul, marker]):
+            rc, _out, err = call_gate_main(gate_clarification, self.event)
         self.assertEqual(rc, 2)
         self.assertIn("which token scheme", err)
 

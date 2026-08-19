@@ -52,10 +52,11 @@ def main() -> int:
         return 0
     try:
         text = Path(file_path).read_text(encoding="utf-8")
-    # UnicodeDecodeError included (issue #8): it is a ValueError, not an
-    # OSError, and an undecodable file must degrade to no verdict rather
-    # than crash a PostToolUse hook that cannot block anyway.
-    except (OSError, UnicodeDecodeError):
+    # ValueError included (issues #8, #17): it covers UnicodeDecodeError for
+    # an undecodable file and the embedded-NUL path that only raises inside
+    # read_text - both must degrade to no verdict rather than crash a
+    # PostToolUse hook that cannot block anyway.
+    except (OSError, ValueError):
         return 0
     problems = []
     meta = parse_hierarchy(text, SPEC_HIERARCHY)

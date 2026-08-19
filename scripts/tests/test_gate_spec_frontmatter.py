@@ -139,6 +139,23 @@ class GateSpecFrontmatterTests(TempDirCase):
             self._context("specs/commands/find.md"),
         )
 
+    def test_an_embedded_nul_path_degrades_to_no_verdict(self) -> None:
+        # The residue of issue #8 (issue #17): a NUL in `file_path`
+        # passes `resolve()` and `relative_to()` and only raises inside
+        # `read_text`, as a `ValueError` that is NOT a
+        # `UnicodeDecodeError` - so the guard narrowed to
+        # `(OSError, UnicodeDecodeError)` still crashed the hook. It must
+        # degrade to silence - and the gate itself must stay standing, so
+        # the next event against a readable spec still gets its verdict.
+        self.assertEqual(
+            self._silence("specs/commands/bad\x00spec.md"), ""
+        )
+        self._write("specs/commands/find.md", "# Command: acme find")
+        self.assertIn(
+            "no YAML frontmatter block",
+            self._context("specs/commands/find.md"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

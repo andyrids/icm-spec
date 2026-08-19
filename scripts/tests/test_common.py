@@ -307,6 +307,24 @@ class IterPlansTests(TempDirCase):
         found = list(_common.iter_plans(self.root))
         self.assertEqual([path.name for path, _text in found], ["good.md"])
 
+    def test_an_embedded_nul_path_does_not_stop_the_others(self) -> None:
+        # The residue of issue #8 (issue #17): a NUL in a path survives
+        # `resolve()` and `relative_to()` and only raises inside
+        # `read_text`, as a `ValueError` that is NOT a `UnicodeDecodeError`
+        # - so the guard narrowed to `(OSError, UnicodeDecodeError)` still
+        # let it abort the generator. No filesystem can hold a NUL
+        # filename, so the glob is patched to inject one; the `read_text`
+        # that raises is real, and the good plan sorting after it must
+        # still be yielded.
+        plans = self.root / "plans"
+        plans.mkdir()
+        good = plans / "good.md"
+        good.write_text("# good", encoding="utf-8")
+        nul = plans / "bad\x00plan.md"
+        with mock.patch.object(Path, "glob", return_value=[nul, good]):
+            found = list(_common.iter_plans(self.root))
+        self.assertEqual([path.name for path, _text in found], ["good.md"])
+
 
 class GitPendingPathsTests(unittest.TestCase):
     """Parsing contract only - real git behaviour lives in the matrix.

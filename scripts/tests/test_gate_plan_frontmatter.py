@@ -120,6 +120,22 @@ class GatePlanFrontmatterTests(TempDirCase):
         write_plan(self.root, "bogus", status="bogus")
         self.assertIn("bogus", self._context("bogus"))
 
+    def test_an_embedded_nul_path_degrades_to_no_verdict(self) -> None:
+        # The residue of issue #8 (issue #17): a NUL in `file_path`
+        # passes `resolve()` and `relative_to()` and only raises inside
+        # `read_text`, as a `ValueError` that is NOT a
+        # `UnicodeDecodeError` - so the guard narrowed to
+        # `(OSError, UnicodeDecodeError)` still crashed the hook. It must
+        # degrade to silence - and the gate itself must stay standing, so
+        # the next event against a readable plan still gets its verdict.
+        rc, out, _err = call_gate_main(
+            gate_plan_frontmatter, self._event("bad\x00plan")
+        )
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.strip(), "")
+        write_plan(self.root, "bogus", status="bogus")
+        self.assertIn("bogus", self._context("bogus"))
+
     def test_ignores_plans_readme(self) -> None:
         (self.root / "plans").mkdir(exist_ok=True)
         (self.root / "plans" / "README.md").write_text(

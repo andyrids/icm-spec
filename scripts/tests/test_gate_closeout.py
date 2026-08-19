@@ -11,6 +11,7 @@ License:
 """
 
 import unittest
+from unittest import mock
 
 import gate_closeout
 
@@ -80,6 +81,27 @@ class GateCloseoutTests(TempDirCase):
         write_bytes(self.root, "plans/bad.md", b"---\nstatus: caf\xe9\n---\n")
         write_plan(self.root, "closing", status="done", pr="")
         rc, _out, err = call_gate_main(gate_closeout, self.event)
+        self.assertEqual(rc, 2)
+        self.assertIn("closing.md", err)
+
+    def test_an_embedded_nul_path_does_not_stop_the_others(self) -> None:
+        # The residue of issue #8 (issue #17): a NUL in a pending path
+        # only raises inside `read_text`, as a `ValueError` that is NOT a
+        # `UnicodeDecodeError` - so the guard narrowed to
+        # `(OSError, UnicodeDecodeError)` still crashed the loop. Real
+        # `-z` porcelain cannot emit one (NUL is its record separator),
+        # so the pending list is mocked; the `read_text` that raises is
+        # real, and the good plan after it must still be judged - and
+        # still block.
+        write_plan(self.root, "closing", status="done", pr="")
+        pending = [
+            ("??", "plans/bad\x00plan.md"),
+            ("??", "plans/closing.md"),
+        ]
+        with mock.patch.object(
+            gate_closeout, "git_pending_paths", return_value=pending
+        ):
+            rc, _out, err = call_gate_main(gate_closeout, self.event)
         self.assertEqual(rc, 2)
         self.assertIn("closing.md", err)
 
